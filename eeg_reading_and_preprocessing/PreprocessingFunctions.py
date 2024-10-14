@@ -1,7 +1,6 @@
 import os.path
 import mne
 import neurokit2 as nk
-import matlab.engine
 import mat4py
 import numpy as np
 from icecream import ic
@@ -212,6 +211,7 @@ def update_annotations_suzanne(raw, annot_path, sampleSignalPath, method='add', 
     - raw: changed raw object
     '''
     if recompute or not os.path.exists(annot_path):
+        import matlab.engine
         eng = matlab.engine.start_matlab()
         # extract annotations
         eng.extract_annotations_suzanne(sampleSignalPath, annot_path, nargout=0)

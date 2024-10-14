@@ -79,7 +79,7 @@ if __name__ == "__main__":
                 sfreq: int = run['sfreq']
                 montage: str = run['montage']
                 folder_extensions = run['metrics_prefix']
-                print(f'{"#"*20} Running experiment "{exp_name}" and run "{run_name}" {"#"*20}\n')
+                print(f'{"#"*20} Running experiment "{exp_name}" and run "{run_name}" on folder "{bids_folder}" {"#"*20}\n')
                 # iterate over all files in the bids folder
                 for base, dirs, files in os.walk(bids_folder):
                     for file in files:

@@ -1,0 +1,63 @@
+# config file for running experiments using run_fram_bids script
+# two levels are used for defining the parameters. Experiments and runs. Each config can have multiple experiments
+# which in turn can have multiple runs
+experiments:
+  - #checking the full signal for the whole recording time
+    # name of the experiment for logging
+    name: example
+    # root bids folder, should end in BIDS but not necessary, the folder (and subfolders) will be scanned for fif files
+    bids_folder: /home/soenkevl/DataspellProjects/EEGAnalyzer/example/eeg
+    # annotations for which metrics should be calculated. Need to be given as a list with the '-' infront of the option
+    # - Leaving it empty calcs metrics for the whole file
+    # - giving the keyword 'all' calculates it for all annotations in the file (nothing computed if there ar eno annotations)
+    annotations_of_interest:
+
+    #if the signal of interest should be epoched, for using the whole file/annotation leave all empty
+    epoching:
+      #offset in seconds from beginning of file/annotation, leaving it empty fills 0
+      start_time: 60
+      #length of the epochs, if left empty the whole file/annotation length will be used
+      duration: 10
+      #epochs are done from start to stop with only full intervals beeing calculated, no stop time means end of file/annotation
+      stop_time: 360
+    # the name of the output file, has to end with metrics.csv for using the processing notebooks
+    outfile_ending: 'metrics.csv'
+    # if files which allready exist should be recomputed
+    recompute: False
+    # different metrics can be applied to the data which are stores in Metrics.py, here the name of a viable config needs to be given
+    metric_set_name: final-0
+    # definition of the different runs for this experiment where montage and filtering can be adapted
+    runs:
+      -
+        # name of the run for debugging
+        name: lowFreq
+        # filter settings to apply to eeg, can be left empty
+        # not specifying a l_freq or h_freq means no filtering will be applied for the lower or upper bound
+        # filters are defined to filter inbetween l_freq and h_freq, e.g. l_freq=1 and h_freq=4 is a bandpass filter between
+        # 1 and 4 Hz, l_freq=1, h_freq=None is a highpass filter of 1 Hz, l_freq=4, and h_freq=1 is a bandstop filter 1-4 Hz
+        filter:
+          h_freq: 12
+          l_freq: 0.5
+        # sampling freq of the signal to resample to, can be left empty
+        sfreq: 100
+        # montage that should be used, out of 'avg', 'circumferential', 'doublebanana'
+        montage: avg
+        # folder structure, final results are saved at <root_bids_folder>/metrics<metrics_prefix>/<outfile_ending>
+        # should be of form '/<folder1>/<folder2>' can be done with N folders
+        metrics_prefix: /lowfreq/avg
+      - # name of the run for debugging
+        name: allFreq
+        # filter settings to apply to eeg, can be left empty
+        # not specifying a l_freq or h_freq means no filtering will be applied for the lower or upper bound
+        # filters are defined to filter inbetween l_freq and h_freq, e.g. l_freq=1 and h_freq=4 is a bandpass filter between
+        # 1 and 4 Hz, l_freq=1, h_freq=None is a highpass filter of 1 Hz, l_freq=4, and h_freq=1 is a bandstop filter 1-4 Hz
+        filter:
+          h_freq: 60
+          l_freq: 0.5
+        # sampling freq of the signal to resample to, can be left empty
+        sfreq: 200
+        # montage that should be used, out of 'avg', 'circumferential', 'doublebanana'
+        montage: doublebanana
+        # folder structure, final results are saved at <root_bids_folder>/metrics<metrics_prefix>/<outfile_ending>
+        # should be of form '/<folder1>/<folder2>' can be done with N folders
+        metrics_prefix: /allFreq/doublebanana
