@@ -1,6 +1,6 @@
 import edgeofpy as eop
 import neurokit2 as nk
-import Michels_code_translation as Mct
+#import Michels_code_translation as Mct
 
 
 def select_metrics(name):
@@ -85,14 +85,14 @@ def select_metrics(name):
                        None, None]
         return metrics_functions, metrics_name_list, kwargs_list
 
-    elif name =='Michels_features':
-        metrics_name_list = ['ADR', 'Artifact', 'BCI', 'BCIc', 'BSAR', 'Burstc', 'CRI', 'CohAll_delta', 'Periodicity',
-                             'RPP', 'RPPpower', 'Regularity', 'ShannonEntropy', 'SignalPower', 'artefacts',
-                             'bursts_per_minute', 'fractions_bursts_corr_larger_08', 'max_bursts_correlations',
-                             'mean_burst_correlations']
-        metrics_functions = [Mct.calc_features_from_EEG_data]
-        kwargs_list = [{'fs': 100, 'interval_len': 10}]
-        return metrics_functions, metrics_name_list, kwargs_list
+    # elif name =='Michels_features':
+    #     metrics_name_list = ['ADR', 'Artifact', 'BCI', 'BCIc', 'BSAR', 'Burstc', 'CRI', 'CohAll_delta', 'Periodicity',
+    #                          'RPP', 'RPPpower', 'Regularity', 'ShannonEntropy', 'SignalPower', 'artefacts',
+    #                          'bursts_per_minute', 'fractions_bursts_corr_larger_08', 'max_bursts_correlations',
+    #                          'mean_burst_correlations']
+    #     metrics_functions = [Mct.calc_features_from_EEG_data]
+    #     kwargs_list = [{'fs': 100, 'interval_len': 10}]
+    #     return metrics_functions, metrics_name_list, kwargs_list
 
     elif name =='eof_0-1chaos':
         metrics_name_list = ['K-pipeline', 'K-pipeline_denoised', 'K']

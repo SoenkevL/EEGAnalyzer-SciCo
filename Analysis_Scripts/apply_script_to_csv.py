@@ -6,7 +6,6 @@ import pandas as pd
 import yaml
 from Compute_metrics_from_annotation import compute_metrics
 from datetime import datetime
-from icecream import ic
 from multiprocesspandas import applyparallel
 
 # This file is one of the two main files for computation. It is supposed to the executed from the command line with
@@ -75,7 +74,8 @@ def apply_to_datarow(current_row, mapping, metric_set_name, annotations, lfreq, 
             datapath = f'{Synology_root}/{datapath}/{snummer}'
             for root, dirs, files in os.walk(datapath):
                 for file in files:
-                    if '.edf' in file and '012_' in file: # the 012_ is to assure only taca 12 subjects are included
+                    # if '.edf' in file and '012_' in file: # the 012_ is to assure only taca 12 subjects are included
+                    if '.edf' in file:
                         filepath = os.path.join(root, file)
                         time_after_ca = int(file.split('_')[0])
                         if t_after_ca_start <= time_after_ca <= t_after_ca_stop:

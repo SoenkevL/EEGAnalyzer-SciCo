@@ -4,7 +4,6 @@ import sys
 import yaml
 from Compute_metrics_from_annotation import compute_metrics
 from datetime import datetime
-from icecream import ic
 
 # This file is one of the two main files for computation. It is supposed to the executed from the command line with
 # with arguments beeing the config file to use and the logfile where the log is written to.
