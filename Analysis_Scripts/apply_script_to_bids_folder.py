@@ -68,6 +68,7 @@ if __name__ == "__main__":
             ep_start: int = experiment['epoching']['start_time']
             ep_dur: int = experiment['epoching']['duration']
             ep_stop: int = experiment['epoching']['stop_time']
+            ep_overlap: int = experiment['epoching']['overlap']
             metric_set_name = experiment['metric_set_name']
             # we go through the runs for the experiment
             for run in experiment['runs']:
@@ -97,7 +98,7 @@ if __name__ == "__main__":
                                 print(f'outputs will be saved to: \n{outpath}')
                                 # main computational part where compute_metrics from Compute_metrics_from_annotation.py is called
                                 print(compute_metrics(full_path, metric_set_name, annotations, outpath, lfreq, hfreq,
-                                                      montage, ep_start, ep_stop, ep_dur, sfreq, recompute))
+                                                      montage, ep_start, ep_stop, ep_dur, ep_overlap, sfreq, recompute))
                             else:
                                 print('the given script_name is not valid, please see help for details')
                                 sys.exit('the given script_name is not valid, please see help for details')

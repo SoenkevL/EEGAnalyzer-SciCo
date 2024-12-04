@@ -472,7 +472,7 @@ def calc_metrics_from_eeg_dataframe_and_annotations(eeg_dataframe: pd.DataFrame,
 
 
 def epoching(raw: mne.io.Raw, metric_set_name, duration: int = None, start_time: int = None, stop_time: int = None,
-             task: str = None) -> pd.DataFrame:
+             overlap: int = 0, task: str = None) -> pd.DataFrame:
     '''
     instead of using annotations in the data constant epochs are used
     duration, start_time and stop_time need to be given in seconds. Only duration is mandatory.
@@ -491,8 +491,12 @@ def epoching(raw: mne.io.Raw, metric_set_name, duration: int = None, start_time:
         start_time = 0
     if not duration:
         duration = int(np.floor(stop_time - start_time))
+    if overlap:
+        if overlap >= duration:
+            overlap = 0
+            print('overlap cant be bigger or equal to the duration, was reset to 0')
     # go through the different epochs
-    for t_onset in np.arange(start_time, (stop_time - duration) + 1, duration):
+    for t_onset in np.arange(start_time, (stop_time - duration) + 1, duration-overlap):
         t_onset_samples = t_onset * sfreq
         t_stop_samples = (t_onset + duration) * sfreq
         eeg_dataframe = raw.to_data_frame(
@@ -508,7 +512,7 @@ def epoching(raw: mne.io.Raw, metric_set_name, duration: int = None, start_time:
 
 
 def calc_metric_from_annotations(raw: mne.io.Raw, metric_set_name, ep_dur: int, ep_start: int, ep_stop: int,
-                                 relevant_annot_labels: list = None) -> pd.DataFrame:
+                                 overlap: int = 0, relevant_annot_labels: list = None) -> pd.DataFrame:
     '''
     calculates a dataframe for the full annotation epoched into segments.
     inputs:
@@ -545,7 +549,7 @@ def calc_metric_from_annotations(raw: mne.io.Raw, metric_set_name, ep_dur: int, 
                         ep_stop_seconds = annot_stop_seconds
                     # call the epoching function to calc the metrics
                     sub_results_frame = epoching(raw, metric_set_name, ep_dur, ep_start_seconds, ep_stop_seconds,
-                                                 annot_name)
+                                                 overlap, annot_name)
                     # add the calculated metrics to the frame with all the annotations
                     full_annot_frame = pd.concat([full_annot_frame, sub_results_frame], axis=0)
 
@@ -560,14 +564,14 @@ def calc_metric_from_annotations(raw: mne.io.Raw, metric_set_name, ep_dur: int, 
                 ep_stop_seconds = min(ep_start_seconds + ep_stop, annot_stop_seconds)
                 # call the epoching function to calc the metrics
                 sub_results_frame = epoching(raw, metric_set_name, ep_dur, ep_start_seconds, ep_stop_seconds,
-                                             annot_name)
+                                             overlap, annot_name)
                 # add the calculated metrics to the frame with all the annotations
                 full_annot_frame = pd.concat([full_annot_frame, sub_results_frame], axis=0)
     return full_annot_frame
 
 
 def compute_metrics_fif(raw: mne.io.Raw, metric_set_name, relevant_annot_labels: list = None,
-                        ep_dur=None, ep_start=None, ep_stop=None,
+                        ep_dur=None, ep_start=None, ep_stop=None, overlap : int  = 0,
                         task_label=None) -> pd.DataFrame:
     '''
     wrapper functions around calc_metric_from_annotation or epoching to deal with eegs with one, multiple or no annotation
@@ -592,7 +596,7 @@ def compute_metrics_fif(raw: mne.io.Raw, metric_set_name, relevant_annot_labels:
                                                               relevant_annot_labels)
     # no annotation labels provided by user, whole file will be used
     else:
-        full_results_frame = epoching(raw, metric_set_name, ep_dur, ep_start, ep_stop, task_label)
+        full_results_frame = epoching(raw, metric_set_name, ep_dur, ep_start, ep_stop, overlap, task_label)
     return full_results_frame
 
 
@@ -600,8 +604,8 @@ def compute_metrics_fif(raw: mne.io.Raw, metric_set_name, relevant_annot_labels:
 ######################################## high level functions ##########################################################
 ########################################################################################################################
 def compute_metrics(infile_data: str, metric_set_name: str, annot: list, outfile: str, lfreq: int, hfreq: int,
-                    montage: str, ep_start: int = None, ep_stop: int = None, ep_dur: int = None, resamp_freq=100,
-                    repeat_measurement: bool = False, include_chaos_pipe=True, multiprocess: bool = False) -> str:
+                    montage: str, ep_start: int = None, ep_stop: int = None, ep_dur: int = None, overlap : int = 0,
+                    resamp_freq=None, repeat_measurement: bool = False, include_chaos_pipe=True, multiprocess: bool = False) -> str:
     """
     Compute the metrics for the input file per timeseries and save the results to csv.
     Metrics which are computed:
@@ -654,7 +658,7 @@ def compute_metrics(infile_data: str, metric_set_name: str, annot: list, outfile
     apply_filter(raw, lfreq, hfreq)
 
     # downsample
-    if raw.info['sfreq'] > resamp_freq:
+    if raw.info['sfreq'] > resamp_freq and resamp_freq:
         raw.resample(resamp_freq)
 
     # montage (also excludes bads and non eeg channels even if no remontaging is done)
@@ -670,7 +674,7 @@ def compute_metrics(infile_data: str, metric_set_name: str, annot: list, outfile
     task_label = find_task_from_filename(infile_data)
 
     # calculate the metrics
-    full_results_frame = compute_metrics_fif(raw, metric_set_name, annot, ep_dur, ep_start, ep_stop,
+    full_results_frame = compute_metrics_fif(raw, metric_set_name, annot, ep_dur, ep_start, ep_stop, overlap,
                                              task_label=task_label)
 
     # save dataframe to csv
@@ -714,6 +718,7 @@ def main():
     parser.add_argument('--ep_start', type=int, help='start offset for epoching [s]')
     parser.add_argument('--ep_dur', type=int, help='duration of one epoch [s]')
     parser.add_argument('--ep_stop', type=int, help='stop offset for epoching [s]')
+    parser.add_argument('--ep_overlap', type=int, help='overlap to use for sliding window [s]')
     parser.add_argument('--sfreq', type=int, help='will resample to this freq'
                                                   ' if the current sample frequency is higher.'
                                                   ' No upsampling will be done')
@@ -729,10 +734,11 @@ def main():
     ep_start = args.ep_start
     ep_dur = args.ep_dur
     ep_stop = args.ep_stop
+    overlap = args.ep_overlap
     resamp_freq = args.sfreq
     metric_set_name = args.metrics
     return compute_metrics(input_file, metric_set_name, annot_names, output_file, lfreq, hfreq, montage,
-                           ep_start, ep_stop, ep_dur, resamp_freq,
+                           ep_start, ep_stop, ep_dur, overlap, resamp_freq,
                            repeat_measurement=True)
 
 

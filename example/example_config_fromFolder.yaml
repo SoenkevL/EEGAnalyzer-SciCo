@@ -18,12 +18,15 @@ experiments:
       start_time: 60
       #length of the epochs, if left empty the whole file/annotation length will be used
       duration: 10
+      #overlap is used in a sliding window approach to make steps, has to be
+      #strictly less than duration or will be set to 0 within computation
+      overlap: 5
       #epochs are done from start to stop with only full intervals beeing calculated, no stop time means end of file/annotation
       stop_time: 360
     # the name of the output file, has to end with metrics.csv for using the processing notebooks
     outfile_ending: 'metrics.csv'
     # if files which allready exist should be recomputed
-    recompute: False
+    recompute: True
     # different metrics can be applied to the data which are stores in Metrics.py, here the name of a viable config needs to be given
     metric_set_name: final-0
     # definition of the different runs for this experiment where montage and filtering can be adapted
