@@ -83,6 +83,7 @@ if __name__ == "__main__":
                 for base, dirs, files in os.walk(bids_folder):
                     for file in files:
                         # only raw.fif are of interest for the analysis, could be changed if needed
+                        print(file)
                         if file.endswith("raw.fif"):
                             # instantiate files, a check that the outpath exists and is properly created is done in
                             # compute metrics itself
@@ -90,6 +91,7 @@ if __name__ == "__main__":
                             # files need to be saved with the name 'preprocessed-raw.fif' for this to work
                             outpath = full_path.replace("preprocessed-raw.fif", outfile_ending)
                             outpath = outpath.replace("eeg", f"metrics{folder_extensions}")
+                            print(outpath)
                             if outfile_ending.endswith("metrics.csv"):
                                 print(f'{"-"*10} Calculating metrics for {file} {"-"*10}')
                                 print(f'outputs will be saved to: \n{outpath}')

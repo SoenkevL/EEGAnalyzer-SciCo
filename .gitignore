@@ -1,8 +1,8 @@
-# custom folders
-.edf
-.csv
-.fif
-.log
+custom folders
+*.edf
+*.csv
+*.fif
+*.log
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

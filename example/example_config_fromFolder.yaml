@@ -6,7 +6,7 @@ experiments:
     # name of the experiment for logging
     name: example
     # root bids folder, should end in BIDS but not necessary, the folder (and subfolders) will be scanned for fif files
-    bids_folder: /home/soenkevl/DataspellProjects/EEGAnalyzer/example/eeg
+    bids_folder: ./example/eeg
     # annotations for which metrics should be calculated. Need to be given as a list with the '-' infront of the option
     # - Leaving it empty calcs metrics for the whole file
     # - giving the keyword 'all' calculates it for all annotations in the file (nothing computed if there ar eno annotations)
