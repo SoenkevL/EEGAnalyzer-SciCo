@@ -38,3 +38,39 @@ class Buttler:
         '''
         if os.path.dirname(log_file) and not os.path.exists(os.path.dirname(log_file)):
             os.makedirs(os.path.dirname(log_file), exist_ok=True)
+
+    def find_task_from_filename(self, filename):
+        '''
+        uses the filename to extract a task from it, essentially needs the keyword task in the name of the file and extracts
+        '***_task-[extracts this]_***'
+        input:
+        -filename: name of the file to extract task from
+        return:
+        -task: name of the task that was extracted
+        '''
+        task: str = None
+        file_name_list = filename.split('_')
+        for name_part in file_name_list:
+            if 'task' in name_part:
+                task = name_part.split('-')[1:]
+        if isinstance(task, list):
+            task = '-'.join(task)
+        return task
+
+
+    def map_chaos_pipe_result_to_float(self, result: str) -> float:
+        '''
+        only relevant for the 0-1 chaos pipeline results from tokers original matlab implementation to convert a string to
+        float
+        '''
+        # map the output of the chaos pipeline result to a float in order to have only floats in the dataframe
+        if result == 'periodic':
+            return 0
+        if result == "chaotic":
+            return 1
+        if result == 'stochastic':
+            return 2
+        if result == 'nonstationary':
+            return 3
+        else:
+            return 4  # something went wrong here

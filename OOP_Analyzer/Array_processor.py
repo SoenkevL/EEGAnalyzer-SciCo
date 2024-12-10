@@ -6,21 +6,33 @@ It will be able to use concepts such as sfreq, to convert between time and sampl
 
 import numpy as np
 import Metrics
-import Buttler
 import pandas as pd
-import mne
+from Buttler import Buttler
 
 class Array_processor:
-    def __init__(self, data=None, metric_name=None, metric_file = None, sfreq=1):
+    def __init__(self, data=None, metric_name=None, sfreq=1, axis_of_time = 1):
         self.data = data if data else []
         self.metric_name = metric_name
-        self.metric_file = metric_file if metric_file else 'Metrics.py'
         self.buttler = Buttler()
         self.sfreq = sfreq
+        self.axis_of_time = axis_of_time
 
     def set_data(self, data):
         self.data = data
 
+    def set_axis_of_time(self, axis_of_time):
+        self.axis_of_time = axis_of_time
+
+    def set_metric_name(self, metric_name):
+        self.metric_name = metric_name
+
+    def transpose_data(self, change_axis_of_time=False):
+        self.data = self.data.T
+        if change_axis_of_time:
+            if self.axis_of_time == 1:
+                self.axis_of_time = 0
+            elif self.axis_of_time == 0:
+                self.axis_of_time = 1
 
     def initialize_metric_functions(self, name):
         '''
@@ -115,7 +127,7 @@ class Array_processor:
 
     def create_result_dict_from_eeg_frame(self, data_frame, metrics_func_list: list,
                                           metrics_name_list: list[str], kwargs_list: list[dict],
-                                          axis=1,  channelwise=True) -> (dict, list[str]):
+                                          channelwise=True) -> (dict, list[str]):
         '''
         Creates a metric frame from the combination of the eeg and the metric lists
         input:
@@ -130,18 +142,18 @@ class Array_processor:
         '''
         result_dict = {}
         if channelwise:
-            if axis == 1:
-                for idx in range(data_frame[1]):
-                    temp_data = data_frame[:, idx]
+            if self.axis_of_time == 0:
+                for col in range(data_frame.shape[1]):
+                    temp_data = data_frame[:, col]
                     raw_result_array = self.create_result_array(temp_data, metrics_func_list, kwargs_list)
                     processed_result_array = self.process_result_array(raw_result_array, metrics_name_list)
-                    result_dict[idx] = processed_result_array
+                    result_dict[col] = processed_result_array
             else:
-                for idx in range(data_frame[0]):
-                    temp_data = data_frame[idx, :]
+                for row in range(data_frame.shape[0]):
+                    temp_data = data_frame[row, :]
                     raw_result_array = self.create_result_array(temp_data, metrics_func_list, kwargs_list)
                     processed_result_array =self.process_result_array(raw_result_array, metrics_name_list)
-                    result_dict[idx] = processed_result_array
+                    result_dict[row] = processed_result_array
         else:
             raw_result_array = self.create_result_array(self.data, metrics_func_list, kwargs_list)
             processed_result_array = self.process_result_array(raw_result_array, metrics_name_list)
@@ -179,7 +191,7 @@ class Array_processor:
         return sub_results_frame
 
 
-    def calc_metrics_from_eeg_dataframe_and_annotations(self, dataframe, metric_set_name,
+    def calc_metrics_from_eeg_dataframe_and_annotations(self, dataframe,
                                                         annot_label: str, annot_startDataRecord: float,
                                                         annot_duration: float) -> pd.DataFrame:
         '''
@@ -195,7 +207,7 @@ class Array_processor:
         - sub_results_frame: dataframe containing the metrics per channel for the segment
         '''
         # initialize the metrics which should be calculated
-        metrics_functions, metrics_name_list, kwargs_list = self.initialize_metric_functions(metric_set_name)
+        metrics_functions, metrics_name_list, kwargs_list = self.initialize_metric_functions(self.metric_name)
         # calculate the results for the metrics and store them to dict
         result_dict, metrics_name_list = self.create_result_dict_from_eeg_frame(dataframe, metrics_functions,
                                                                            metrics_name_list, kwargs_list)
@@ -205,7 +217,7 @@ class Array_processor:
         return sub_results_frame
 
 
-    def epoching(self, metric_set_name, n_samples, duration: int = None, start_time: int = None, stop_time: int = None,
+    def epoching(self, duration: int = None, start_time: int = None, stop_time: int = None,
                  overlap: int = 0, task: str = None) -> pd.DataFrame:
         '''
         instead of using annotations in the data constant epochs are used
@@ -213,6 +225,7 @@ class Array_processor:
         epochs are created in the interval [start, stop) with steps of duration
         only full duration intervals are created
         '''
+        n_samples = len(self.data)
         full_epoch_frame = pd.DataFrame()
         # set default parameters
         if not stop_time:
@@ -234,93 +247,8 @@ class Array_processor:
             eeg_dataframe = self.data[[t_onset_samples, t_stop_samples], :]
             # calculat the results of the current epoch and save them to dataframe
             print(f'Calculating for times: {t_onset}:{t_onset + duration}')
-            sub_results_frame = self.calc_metrics_from_eeg_dataframe_and_annotations(eeg_dataframe, metric_set_name,
+            sub_results_frame = self.calc_metrics_from_eeg_dataframe_and_annotations(eeg_dataframe,
                                                                                 task, t_onset, duration)
             # add the calculated metrics to the frame with all the other epochs
             full_epoch_frame = pd.concat([full_epoch_frame, sub_results_frame], axis=0)
         return full_epoch_frame
-
-
-    ########################################################################################################################
-    ######################################## high level functions ##########################################################
-    ########################################################################################################################
-    def compute_metrics(self, infile_data: str, metric_set_name: str, annot: list, outfile: str, lfreq: int, hfreq: int,
-                        montage: str, ep_start: int = None, ep_stop: int = None, ep_dur: int = None, overlap : int = 0,
-                        resamp_freq=None, repeat_measurement: bool = False, include_chaos_pipe=True, multiprocess: bool = False) -> str:
-        """
-        Compute the metrics for the input file per timeseries and save the results to csv.
-        Metrics which are computed:
-        - fractal dimension (katz algorithm)
-        - permutation entropy
-        - lempel ziv complexity
-        - largest lyapunov exponent
-        - chaos pipeline by toker (using matlab engine)
-        inputs:
-        - infile_data: the file containing the eeg for which the metrics are to be calculated
-        - annot: the annotations which should be used. Needs to contain names equal to the ones in the infile_annot.
-                    If not provided will use all annotations which have a positive duration.
-        - outfile: the file to which the csv with the metrics is saved
-        - lfreq: highpass freq for filtering the data before metrics calc
-        - hfreq: lowpass freq for filtering the data before metrics calc
-            A filter is designed i a way that it allows frequencies inbetween low and high to pass
-        - montage: string which defines the montage for the calculation valid options are: 'avg', refchannel, 'doublebanana',
-                    'circumferential'
-        - ep_start: start offset for the epoching, defaults to 0, needs to be given in seconds after beginning of file/annot
-        - ep_stop: stop offset for the epoching, defaults to length of file/annot, needs to be given in seconds
-        - ep_dur: duration of the epochs, defaults to length of file/annot, needs to be given in seconds
-        - repeat_measurement: boolean which is given to out_file_check. If True and the metrics.csv file allready exists it
-                    will be recalculated and overwritten, if False the metrics calculation will be skipped and the original
-                    file will persist
-        - include_chaos_pipe: boolean if the pipleine by toker should be used. Requires a matlab version with the pipeline
-                            on its path
-        outputs:
-        - saves a csv with the metrics to the outfile location
-        - returns a string informing about what was done by the function
-        """
-        # check the name of the outfile
-        outfile_check, outfile_check_message = check_outfile_name(outfile, file_exists_ok=repeat_measurement)
-        if not outfile_check:
-            return outfile_check_message
-
-        # load data
-        raw, sfreq = load_data_file(infile_data)
-
-        if not raw:
-            return 'EEG data could not be loaded, skipping EEG'
-
-
-        # only keeps channels which correspond to the typical 10-20 system names
-        bipolar = only_keep_10_20_channels_and_check_bipolar(raw)
-        if bipolar:
-            print(f'Most likely allready has a bipolar montage \n'
-                  f'Channel names: \n {raw.ch_names}')
-
-        # filter
-        apply_filter(raw, lfreq, hfreq)
-
-        # downsample
-        if raw.info['sfreq'] > resamp_freq and resamp_freq:
-            raw.resample(resamp_freq)
-
-        # montage (also excludes bads and non eeg channels even if no remontaging is done)
-        raw = change_montage(raw, montage)
-
-        if not raw:
-            return 'could not set montage, maybe EEG is faulty, skipping EEG'
-
-        # plots for debugging
-        # raw.plot(block=True)
-
-        # extract the task label incase only epoching is used to use as annot
-        task_label = find_task_from_filename(infile_data)
-
-        # calculate the metrics
-        full_results_frame = compute_metrics_fif(raw, metric_set_name, annot, ep_dur, ep_start, ep_stop, overlap,
-                                                 task_label=task_label)
-
-        # save dataframe to csv
-        if not full_results_frame.empty:
-            full_results_frame.to_csv(outfile)
-            return 'finished and saved successfully'
-        else:
-            return 'no metrics could be calculated'
