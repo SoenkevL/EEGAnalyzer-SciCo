@@ -8,36 +8,47 @@ class Buttler:
     def __init__(self):
         pass
 
-
     def check_outfile_name(self, outfile: str, file_exists_ok: bool = True):
         '''
-        utility function which checks if the output file allready exists and if the path is valid
-        inputs:
-        -outfile: path where results should be saved
-        -file_exists_ok: if the file can allready exists or if that should give an error
-        returns:
-        -1 if everything with the file path is ok and 0 if there is a problem with the path
+        Checks if the output file already exists and if the provided file path is valid.
+        
+        Parameters:
+        - outfile (str): The desired path where results should be saved. Must end with '_metrics.csv'.
+        - file_exists_ok (bool): Indicates if it is acceptable for the file to already exist. Default is True.
+        
+        Returns:
+        - tuple: 
+          - (int): 1 if the file path is valid and the directory was created (if necessary), 
+                   0 if the file name is invalid or does not meet the requirements.
+          - (str): A message indicating the result of the operation.
         '''
-        # check that outputfile is correct and ensure that the path exists
+        
+        # Check if the output file name is non-empty and the path is valid
+        if not outfile.strip():
+            return 0, 'Output file path is empty or invalid.'
+        
+        # Check if the output file name ends with 'metrics.csv' and ensure that the directory exists
         if outfile.endswith('metrics.csv'):
             dirpath = os.path.dirname(outfile)
-            if not os.path.exists(dirpath):
-                os.makedirs(dirpath, exist_ok=file_exists_ok)
-                return 1, 'path was created, everything ok'
+            os.makedirs(dirpath, exist_ok=file_exists_ok)
+            return 1, 'Path was created, everything is OK.'
         else:
-            return 0, 'name not valid, check if it ends with _metrics.csv'
+            return 0, 'Invalid file name. Ensure it ends with _metrics.csv.'
 
 
-    def check_file_exists_and_create_path(self,log_file):
+    def check_file_exists_and_create_path(self, log_file):
         '''
-        checks if a file path exists (not the file itself) and makes sure the path is created
-        inputs:
-        - log_file: the logfile name with path
-        returns:
-        - Nothing
+        Ensures that the directory path for the given log file exists. If it does not exist, it creates it.
+    
+        Parameters:
+        - log_file (str): The full path to the log file, including its file name.
+    
+        Returns:
+        - None
         '''
-        if os.path.dirname(log_file) and not os.path.exists(os.path.dirname(log_file)):
-            os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        directory = os.path.dirname(log_file)
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory, exist_ok=True)
 
     def find_task_from_filename(self, filename):
         '''
