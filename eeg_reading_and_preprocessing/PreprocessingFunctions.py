@@ -8,7 +8,7 @@ import pandas as pd
 
 
 def only_keep_10_20_channels_and_check_bipolar(raw):
-    '''
+    """
     Checks the EEG channels for containing a valid part, only once and no part that is marked as invalid in order to
     only keep the correct EEG channels and marke others as bad
     returns True if two valid channel parts are in one channel name
@@ -16,7 +16,7 @@ def only_keep_10_20_channels_and_check_bipolar(raw):
     - raw: raw instance of the EEG
     returns:
     - duplicate_positives: boolean that is true if a channel has two valid parts indicating a bipolar or circular montage
-    '''
+    """
     valid_channel_parts = ['Fp1', 'Fp2', 'F3', 'F4', 'C3', 'C4', 'P3', 'P4', 'O1', 'O2', 'F7', 'F8',
                            'T3', 'T4', 'T5', 'T6', 'Fz', 'Cz', 'Pz']
     invalid_channel_parts = ['pO2', 'CO2', 'X', 'SaO2']

@@ -80,9 +80,24 @@ mv PN00-1.edf example/eeg/PN001-original.edf
 
 This will also rename the file so that it is properly handled by the config (touched upon in step 7)
 
-### 6. Launch Jupyter notebook for preprocessing
+### 6. Preprocessing the file
 
-Now we can run the notebook in the *eeg_reading_and_preprocessing* folder to do an inspection of the example eeg
+There are multiple possible approaches for Preprocessing the eeg in the folder *eeg_reading_and_preprocessing* 
+1. Navigate to the folder and use the ipython notebook for an interactive experience
+2. Use the *preprocess_and_inspect.py* file to inspect the data without relying on ipython notebooks
+```
+python3 eeg_reading_and_preprocessing/preprocess_and_inspect.py
+```
+3. Use the *preprocess_fast.py* to do the bare minimum preprocessing to execute the last step without any visual or textual outputs
+```
+python3 eeg_reading_and_preprocessing/preprocess_fast.py
+```
+For the visualization users may experience problems as it relies on qt being available on the system.
+When working on ubuntu check out the following resource for help: https://web.stanford.edu/dept/cs_edu/resources/qt/install-linux \
+When working with arch linux simply install the following package:
+```
+pacman -S qtcreator
+```
 
 ### 7. Inspecting the configuration file
 
@@ -94,8 +109,8 @@ example config file.
 
 ### 8. Run the main script with configuration
 
-In order to calculate the metrics on our eeg files we can run the example configuration using the following command.
-Make sure the virtual environment is activated and the requirements are installed.
+In order to calculate the metrics on our eeg files we can run the example configuration using the following command.  
+Make sure you are inside the project root with the virtual environment activated and the requirements installed.
 
 ```
 python3 OOP_Analyzer/apply_script_to_bids_folder_oop.py \

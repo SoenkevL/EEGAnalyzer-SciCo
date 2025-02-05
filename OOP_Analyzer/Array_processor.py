@@ -415,10 +415,7 @@ class Array_processor:
         if not isinstance(annot_label, (str, int, float)):
             annot_label = '<missing>'
             print('no label was provided, using <missing> instead.')
-        if not isinstance(annot_startDataRecord, (int, float)) or annot_startDataRecord < 0:
-            raise ValueError("annot_startDataRecord must be a non-negative number.")
-        if not isinstance(annot_duration, (int, float)) or annot_duration <= 0:
-            raise ValueError("annot_duration must be a positive number.")
+
 
         try:
             # Initialize metrics to be calculated
@@ -453,12 +450,13 @@ class Array_processor:
         Returns:
             pd.DataFrame: A dataframe containing calculated metrics for all epochs.
         """
-        # Validate duration
-        if duration <= 0:
-            raise ValueError("Duration must be a positive integer.")
 
         # Determine the total duration (in seconds) based on the data length and sampling frequency
         total_duration = np.round(len(self.data) / self.sfreq)
+        # Validate duration
+        if not duration or duration <= 0:
+            duration = total_duration
+            print("Duration must be a positive integer. Set to total duration.")
 
         # Validate and set stop_time
         if stop_time is None:
@@ -467,19 +465,19 @@ class Array_processor:
             stop_time = min(total_duration, stop_time)  # Ensure stop_time is within the data range
 
         # Validate start_time
-        if start_time < 0 or start_time >= stop_time:
-            raise ValueError("Start time must be non-negative and less than stop time.")
+        if not start_time or start_time < 0 or start_time >= stop_time:
+            start_time = 0
+            print("Start time must be non-negative and less than stop time. set to 0")
 
         # Validate and adjust overlap
-        if overlap < 0:
-            raise ValueError("Overlap cannot be negative.")
-        if overlap >= duration:
-            print("Overlap cannot be greater than or equal to duration. Resetting overlap to 0.")
+        if not overlap or overlap < 0 or overlap >= duration:
+            print("Overlap not set or >= duration. Resetting overlap to 0.")
             overlap = 0
 
         # Check if duration fits within the interval [start_time, stop_time)
         if (stop_time - start_time) < duration:
-            raise ValueError("The interval between start_time and stop_time is less than the duration.")
+            duration = stop_time - start_time
+            print("The interval between start_time and stop_time is less than the duration. Setting duration to full interval.")
 
         # Initialize results container
         results = []

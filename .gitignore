@@ -1,8 +1,9 @@
-custom folders
+# custom folders
 *.edf
 *.csv
 *.fif
 *.log
+Artificial_signal_tests
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

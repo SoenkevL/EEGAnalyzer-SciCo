@@ -1,6 +1,6 @@
 import pandas as pd
-import numpy as np
 from scipy.signal import butter, filtfilt, resample_poly
+
 import Array_processor
 import Buttler
 
@@ -13,7 +13,7 @@ class CSVProcessor:
     Initialization:
     - `datapath` (str): Path to the CSV file to be processed.
     - `sfreq` (int): Sampling frequency of the data.
-    - `time_vector` (bool): Whether the first column represents a time vector (default: False).
+    - `remove_time_vector` (bool): Whether the first column represents a time vector (default: False).
         If `True`, the first column will be excluded from processing.
 
     Methods:
@@ -23,14 +23,15 @@ class CSVProcessor:
     - `compute_metrics`: High-level function for metric calculation using ArrayProcessor.
     """
 
-    def __init__(self, datapath: str, sfreq: int = None, time_vector: bool = False):
+    def __init__(self, datapath: str, header=0, index=0, sfreq: int = None, remove_first_column: bool = False):
         self.datapath = datapath
         self.sfreq = sfreq
-        self.time_vector = time_vector
-        self.data = self.load_data_file(datapath)
+        self.remove_first_column = remove_first_column
+        self.data = self.load_data_file(datapath, header, index)
         self.buttler = Buttler.Buttler()  # Optional utility for handling file operations
 
-    def load_data_file(self, data_file: str):
+
+    def load_data_file(self, data_file: str, header, index):
         """
         Loads a CSV file into a pandas DataFrame.
 
@@ -41,13 +42,13 @@ class CSVProcessor:
         - data (pd.DataFrame): The loaded data as a DataFrame.
         """
         try:
-            data = pd.read_csv(data_file)
+            data = pd.read_csv(data_file, header=header, index_col=index)
             if data.empty:
                 print(f"Warning: CSV file {data_file} is empty.")
                 return None
 
-            # If time_vector is True, remove the first column
-            if self.time_vector:
+            # If remove_time_vector is True, remove the first column
+            if self.remove_first_column:
                 data = data.iloc[:, 1:]
             return data
         except FileNotFoundError:
@@ -57,6 +58,7 @@ class CSVProcessor:
         except Exception as e:
             print(f"An error occurred while loading the file: {data_file}. Error: {e}")
         return None
+
 
     def downsample(self, resamp_freq):
         """
@@ -83,6 +85,7 @@ class CSVProcessor:
                 print(f"An error occurred during resampling: {e}")
         else:
             print(f"Resampling frequency {resamp_freq} must be lower than the current sampling frequency {self.sfreq}.")
+
 
     def apply_filter(self, l_freq: float = None, h_freq: float = None, order: int = 5):
         """
@@ -127,47 +130,67 @@ class CSVProcessor:
         except Exception as e:
             print(f"An error occurred during filtering: {e}")
 
-    def compute_metrics(self, metric_set_name: str, outfile: str, ep_start: int = None, ep_stop: int = None,
-                        ep_dur: int = None, overlap: int = 0, resamp_freq=None) -> str:
-        """
-        Compute metrics using ArrayProcessor. Saves the results to a specified output file.
 
-        Args:
-        - metric_set_name (str): Name of the metrics to compute.
-        - outfile (str): Path of the output file where results will be saved.
-        - ep_start (int, optional): Epoch start time (in seconds). Defaults to None.
-        - ep_stop (int, optional): Epoch stop time (in seconds). Defaults to None.
-        - ep_dur (int, optional): Duration of an epoch (in seconds). Defaults to None.
-        - overlap (int, optional): Overlap between epochs (in seconds). Defaults to 0.
-        - resamp_freq (int, optional): Sampling frequency for resampling.
-
-        Returns:
-        - str: Message indicating the processing status.
+    def compute_metrics(self, metric_set_name: str, outfile: str, lfreq: float = None, hfreq: float = None,
+                        ep_start: int = None, ep_stop: int = None, ep_dur: int = None, overlap: int = 0,
+                        resamp_freq=None, repeat_measurement: bool = False) -> str:
         """
+            Compute metrics with preprocessing for filtering, resampling, and metric calculations.
+
+            Args:
+            - metric_set_name (str): Name of the metric set to calculate.
+            - outfile (str): File path where the resulting metrics (CSV) will be saved.
+            - lfreq (float, optional): High-pass frequency cutoff for filtering data before metric calculations.
+            - hfreq (float, optional): Low-pass frequency cutoff for filtering data before metric calculations.
+            - ep_start (int, optional): Start offset for epoching in seconds, relative to the data start. Defaults to None.
+            - ep_stop (int, optional): Stop offset for epoching in seconds, relative to the data start. Defaults to None.
+            - ep_dur (int, optional): Duration of individual epochs in seconds. Defaults to None.
+            - overlap (int, optional): Amount of overlap between epochs in seconds. Defaults to 0.
+            - resamp_freq (int, optional): Frequency to which the data will be downsampled. Defaults to None (no downsampling).
+            - repeat_measurement (bool, optional): If True and the metrics CSV file already exists, the calculation is
+                                                    redone, and the existing file is overwritten. Defaults to False.
+
+            Returns:
+            - str: A message indicating the outcome of the processing:
+                   * 'finished and saved successfully': When computation and saving succeed.
+                   * 'no metrics could be calculated': When no metrics are computed.
+            """
+
+        # Check the outfile name with Buttler for possible issues
+        outfile_check, outfile_check_message = self.buttler.check_outfile_name(outfile, file_exists_ok=repeat_measurement)
+        if not outfile_check:
+            return outfile_check_message
+
         # Validate that data exists
         if self.data is None or self.sfreq is None:
             return "Data not loaded or sampling frequency not set."
+
+        # Apply filtering
+        self.apply_filter(l_freq=lfreq, h_freq=hfreq)
 
         # Downsample if required
         if resamp_freq:
             self.downsample(resamp_freq)
 
-        # Initialize the ArrayProcessor
+        # Initialize the ArrayProcessor for metric calculation
         array_processor = Array_processor.Array_processor(
-            data=self.data,  # Use the full data or whatever remains after earlier steps
+            data=self.data,  # Processed data
             sfreq=self.sfreq,
             axis_of_time=0,
             metric_name=metric_set_name
         )
 
-        # Compute metrics
+        # Extract default or provided epoching parameters
         result_frame = array_processor.epoching(
-            ep_dur=ep_dur, start_time=ep_start, stop_time=ep_stop, overlap=overlap
+            duration=ep_dur,
+            start_time=ep_start,
+            stop_time=ep_stop,
+            overlap=overlap
         )
 
-        # Save results if metrics were successfully computed
+        # Save metrics to the specified output file
         if not result_frame.empty:
-            result_frame.to_csv(outfile, index=False)
-            return "Metrics computed and saved successfully."
+            result_frame.to_csv(outfile, index=True, header=True)
+            return "finished and saved successfully"
         else:
-            return "No metrics could be calculated."
+            return "no metrics could be calculated"
