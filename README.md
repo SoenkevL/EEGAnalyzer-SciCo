@@ -60,18 +60,22 @@ pip install -r requirements.txt
 ### 4. Prepare example data directory structure
 
 ```
-mkdir -p examples/eeg
+mkdir -p example/eeg
 ```
 
 ### 5. Move downloaded file to correct location
 
-Now we need to download an example eeg to test the pipeline on. For this we use an open source edf file from kaggle
+Now we need to download an example eeg to test the pipeline on.
+Any eeg file in edf format could be used but some changes to the scripts may be necessary then.
+For the example I recommed using the file PN00-1.edf from the following link.
 https://www.kaggle.com/datasets/abhishekinnvonix/seina-scalp-epilepsy-dataset?resource=download (14.10.2024)  
-One can use all 5 files or just one of them, but we focus only on using one in this example, after downloading the file
-move it to the right folder with the following command
-
+The data comes from a platform called kaggle which provides open source data and code exchange for people interested
+in the machine learning community. An account may be required to download the data but is completely without cost.
+The downloaded file will be a zip, extract it to the root directory in which you currently are.
+Additional edf files could be downloaded from the link. We focus only on using one in this example. \
+After downloading the file move it to the right folder with the following command
 ```
-mv PN00-1.edf examples/eeg/PN001-original.edf
+mv PN00-1.edf example/eeg/PN001-original.edf
 ```
 
 This will also rename the file so that it is properly handled by the config (touched upon in step 7)
