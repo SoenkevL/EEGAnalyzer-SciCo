@@ -11,6 +11,7 @@
 
 #%% imports and settings
 from PreprocessingFunctions import *
+import multiprocessing as mp
 mne.set_config('MNE_BROWSER_BACKEND', 'qt')
 # if error on linux (debian) see the following link: https://web.stanford.edu/dept/cs_edu/resources/qt/install-linux
 # if error on linux (arch) install qtcreator from pacman: pacman -S qtcreator
@@ -22,15 +23,15 @@ out_path = sampleSignalPath.replace('original.edf', 'preprocessed-raw.fif')
 raw = mne.io.read_raw(sampleSignalPath, preload=True)
 raw = raw.pick_types(eeg=True) #focus on eeg channels (includes all channels marked as eeg not only electrode channels)
 
-#%% print some info from the eeg
-print(f'When reading a file with mne a raw instance is created from the eeg:\n {raw}')
-print(f'Hyperparamters of the eeg can be read from the raw.info parameter:\n {raw.info}')
-print(f'All available channels can be found in the raw.ch_names parameter: \n {raw.ch_names}')
-print(f'Additonally the info object can contain more detailed info of specific things like the Subject: \n {raw.info['subject_info']}')
 
-#%% print the loaded eeg file before any preprocessing
-raw.plot(duration=20, remove_dc=False, block=True, show_options=True, title='Raw EEG without any processing')
-
+#%% plot the loaded eeg file as a seperate process so It can be kept open while continuing the analysis of the metrics
+def eeg_plot(raw):
+    raw.plot(duration=20, remove_dc=False, block=True, show_options=True, title='Raw EEG without any processing')
+def mp_eeg_plot(raw):
+    plot = (mp.Process(target=eeg_plot, args=(raw,)))
+    plot.start()
+    return plot
+current_eeg_plot = mp_eeg_plot(raw)
 # Preprocessing the file to see what basic filtering and resampling will do
 #%% set parameters
 l_freq = 0.5 #if should not be changed use raw.info['highpass']
@@ -42,7 +43,9 @@ raw.filter(l_freq=l_freq,h_freq=h_freq)
 raw.resample(sfreq)
 
 #%% now we replot the data to see the visual differences
-raw.plot(duration=20, remove_dc=False, block=True, show_options=True, title='EEG post filtering and resampling')
+if current_eeg_plot.is_alive():
+    current_eeg_plot.join()
+current_eeg_plot = mp_eeg_plot(raw)
 
 #%% also the info of the file will be changed when we apply operations like filtering and resampling
 print(f'Due to the processing of the raw object also the info of the file is changed now: \n {raw.info}')
@@ -50,7 +53,9 @@ print(f'Due to the processing of the raw object also the info of the file is cha
 #%% Next to the basic mne functionality the custom PreprocessingFunctions includes things like changing the montage of the signal
 raw_remontaged = raw.copy()
 raw_remontaged = change_montage(raw=raw_remontaged.pick(picks='eeg', exclude='bads'), montage='doublebanana')
-raw_remontaged.plot(duration=20, remove_dc=False, block=True, show_options=True, title='Montage changed to doublebanana')
+if current_eeg_plot.is_alive():
+    current_eeg_plot.join()
+current_eeg_plot = mp_eeg_plot(raw_remontaged)
 
 #%% Lastly we will save our preprocessed eeg for further processing
 '''
