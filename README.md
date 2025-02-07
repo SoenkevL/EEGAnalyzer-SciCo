@@ -1,6 +1,9 @@
 # EEGAnalyzer
 
-A comprehensive tool for analyzing EEG data with focus on chaotic dynamics, complexity assessment, fractal properties, and entropy calculations.
+A comprehensive tool for analyzing EEG data with focus on customizable metric analysis. Originally designed to analyze the
+chaotic dynamics, complexity assessment, fractal properties, and entropy of EEG signals.  
+The idea of this project is to bring together some of the most powerful python libraries for biomedical timeseries analysis. These
+include mne for eeg processing, pandas to handle dataframes, neurokit2 and edge-of-py to provide the metrics for the analysis.
 
 ## Features
 
@@ -9,6 +12,7 @@ A comprehensive tool for analyzing EEG data with focus on chaotic dynamics, comp
   - Complexity metrics evaluation
   - Fractal property detection
   - Entropy calculation methods
+  - Custom python functions
 
 - **Modular Architecture**:
   - Preset metric sets to start analysis right away 
@@ -50,7 +54,7 @@ cd EEGAnalyzer
 python3 -m venv .eeg_venv
 source .eeg_venv/bin/activate  # On Windows use `.eeg_venv\Scripts\activate`
 ```
-
+Make sure that the virtual environment is always activated while working with the Tool.
 ### 3. Install dependencies
 
 ```
@@ -82,7 +86,7 @@ This will also rename the file so that it is properly handled by the config (tou
 
 ### 6. Preprocessing the file
 
-There are multiple possible approaches for Preprocessing the eeg in the folder *eeg_reading_and_preprocessing* 
+There are multiple possible approaches for Preprocessing the eeg in the folder *eeg_reading_and_preprocessing*.
 1. Navigate to the folder and use the ipython notebook for an interactive experience
 2. Use the *preprocess_and_inspect.py* file to inspect the data without relying on ipython notebooks
 ```
@@ -117,4 +121,23 @@ python3 OOP_Analyzer/apply_script_to_bids_folder_oop.py \
     --yaml_config example/example_config_eeg.yaml \
     --logfile_path example/test.log
 ```
+
+### 8. Analysing the produced metrics
+
+Now that we created two csv files containing the data from our two specified runs we can go ahead and do some analysis on
+these frames. An example of a very few things that can be done with these frames is provided in the example folder.
+```
+python3 example/metric_analysis_example.py
+```
+### 9. Summary
+
+The provided example is intended as guidance to this pipeline. It cant show all the things that it can do and now is the point
+where you need to start experimenting with it yourself.
+
+To end on a personal note: In data analysis it is hard to find a one fits all approach. On the one hand the analysis of your data
+should be a carefully pre-planed step of the final analysis. On the other hand it can be very exciting and interesting to
+explore Data, its sampling parameters and different metrics to try understanding a part of the world from it.  
+Data, and especially the way it is displayed, is very much subject to the experimenter and analyst.
+Therefore, I want to remind anyone that you should not make your data fit your thesis but test your
+thesis with your data by closely thinking about what you analyze and why. 
 
