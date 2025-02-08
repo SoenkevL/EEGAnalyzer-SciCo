@@ -15,7 +15,7 @@ from CSV_processor import CSVProcessor
 # The script is used for processing files from a BIDS folder structure.
 
 
-def check_file_exists_and_create_path(log_file: str, append_datetime: bool = False) -> str:
+def check_file_exists_and_create_path(log_file: str, append_datetime: bool = False) -> (bool|str):
     """
     Ensures the path for a log file exists and optionally appends the current date and time to the filename.
 
@@ -24,8 +24,12 @@ def check_file_exists_and_create_path(log_file: str, append_datetime: bool = Fal
         append_datetime (bool): If True, appends the current date and time to the log file name.
 
     Returns:
-        str: The updated log file path.
+        str: The updated log file path if that was possible otherwise an emtpy string
     """
+    # check if log_file could be a valid path, otherwise return False
+    if not isinstance(log_file, (str ,os.PathLike)):
+        return False
+
     # Create directory for log file if it doesn't exist
     if os.path.dirname(log_file) and not os.path.exists(os.path.dirname(log_file)):
         os.makedirs(os.path.dirname(log_file), exist_ok=True)
@@ -172,62 +176,65 @@ def process_experiment(config: dict, log_file: str):
         log_file (str): The path to the log file where outputs and logs will be saved.
     """
     # Redirect all print outputs to the log file
-    with open(log_file, 'w') as log_stream:
+    if log_file:
+        log_stream = open(log_file, 'w')
         sys.stdout = log_stream  # Redirect print statements to log file
-        print(f'{"*" * 102}\n{"*" * 40} {datetime.today().strftime("%Y-%m-%d %H:%M:%S")} {"*" * 40}\n{"*" * 102}\n')
+    print(f'{"*" * 102}\n{"*" * 40} {datetime.today().strftime("%Y-%m-%d %H:%M:%S")} {"*" * 40}\n{"*" * 102}\n')
 
-        # Iterate through experiments defined in the configuration
-        for experiment in config['experiments']:
-            # Extract experiment-level configuration
-            exp_name = experiment['name']
-            input_file_ending = experiment['input_file_ending']
-            bids_folder = experiment['bids_folder']
-            annotations = experiment['annotations_of_interest']
-            outfile_ending = experiment['outfile_ending']
-            recompute = experiment['recompute']
-            epoching = experiment['epoching']
-            ep_start, ep_dur, ep_stop, ep_overlap = (
-                epoching['start_time'],
-                epoching['duration'],
-                epoching['stop_time'],
-                epoching['overlap'],
+    # Iterate through experiments defined in the configuration
+    for experiment in config['experiments']:
+        # Extract experiment-level configuration
+        exp_name = experiment['name']
+        input_file_ending = experiment['input_file_ending']
+        bids_folder = experiment['bids_folder']
+        annotations = experiment['annotations_of_interest']
+        outfile_ending = experiment['outfile_ending']
+        recompute = experiment['recompute']
+        epoching = experiment['epoching']
+        ep_start, ep_dur, ep_stop, ep_overlap = (
+            epoching['start_time'],
+            epoching['duration'],
+            epoching['stop_time'],
+            epoching['overlap'],
+        )
+        metric_set_name = experiment['metric_set_name']
+
+        # Iterate through runs for each experiment
+        for run in experiment['runs']:
+            # Extract run-level configuration
+            run_name = run['name']
+            lfreq = run['filter']['l_freq']
+            hfreq = run['filter']['h_freq']
+            sfreq = run['sfreq']
+            montage = run['montage']
+            folder_extensions = run['metrics_prefix']
+
+            print(
+                f'{"#" * 20} Running experiment "{exp_name}" and run "{run_name}" on folder "{bids_folder}" {"#" * 20}\n')
+
+            # Create DataFrame of valid files to process
+            files_df = get_files_dataframe(bids_folder, input_file_ending, outfile_ending, folder_extensions)
+            print(f"Generated DataFrame with {len(files_df)} files:")
+            # print(files_df.head())
+
+            # Use pandas apply to process files
+            files_df.apply(
+                process_file,
+                axis=1,
+                metric_set_name=metric_set_name,
+                annotations=annotations,
+                lfreq=lfreq,
+                hfreq=hfreq,
+                montage=montage,
+                ep_start=ep_start,
+                ep_stop=ep_stop,
+                ep_dur=ep_dur,
+                ep_overlap=ep_overlap,
+                sfreq=sfreq,
+                recompute=recompute,
             )
-            metric_set_name = experiment['metric_set_name']
-
-            # Iterate through runs for each experiment
-            for run in experiment['runs']:
-                # Extract run-level configuration
-                run_name = run['name']
-                lfreq = run['filter']['l_freq']
-                hfreq = run['filter']['h_freq']
-                sfreq = run['sfreq']
-                montage = run['montage']
-                folder_extensions = run['metrics_prefix']
-
-                print(
-                    f'{"#" * 20} Running experiment "{exp_name}" and run "{run_name}" on folder "{bids_folder}" {"#" * 20}\n')
-
-                # Create DataFrame of valid files to process
-                files_df = get_files_dataframe(bids_folder, input_file_ending, outfile_ending, folder_extensions)
-                print(f"Generated DataFrame with {len(files_df)} files:")
-                # print(files_df.head())
-
-                # Use pandas apply to process files
-                files_df.apply(
-                    process_file,
-                    axis=1,
-                    metric_set_name=metric_set_name,
-                    annotations=annotations,
-                    lfreq=lfreq,
-                    hfreq=hfreq,
-                    montage=montage,
-                    ep_start=ep_start,
-                    ep_stop=ep_stop,
-                    ep_dur=ep_dur,
-                    ep_overlap=ep_overlap,
-                    sfreq=sfreq,
-                    recompute=recompute,
-                )
+    if log_file:
+        log_stream.close()
 
 if __name__ == "__main__":
     # Main entry point of the program
@@ -236,7 +243,7 @@ if __name__ == "__main__":
         description='Processes files from a BIDS folder structure based on a YAML configuration file.'
     )
     parser.add_argument('--yaml_config', type=str, required=True, help='Path to the YAML configuration file.')
-    parser.add_argument('--logfile_path', type=str, required=True, help='Path to the log file (must end with .log).')
+    parser.add_argument('--logfile_path', type=str, required=False, default=False, help='Path to the log file (must end with .log).')
 
     args = parser.parse_args()
     yaml_file = args.yaml_config
