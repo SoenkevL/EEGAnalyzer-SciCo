@@ -113,7 +113,8 @@ example config file.
 
 ### 8. Run the main script with configuration
 
-In order to calculate the metrics on our eeg files we can run the example configuration using the following command.  
+In order to calculate the metrics on our eeg files we can run the example configuration using the following command.    
+This will create the metrics and a log file, alternatively the command can be run without the logfile argument to see the output in the terminal.  
 Make sure you are inside the project root with the virtual environment activated and the requirements installed.
 
 ```
