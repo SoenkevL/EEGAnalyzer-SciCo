@@ -6,6 +6,7 @@ import pandas as pd
 from datetime import datetime
 from EEG_processor import EEG_processor
 from CSV_processor import CSVProcessor
+from multiprocesspandas import applyparallel
 
 
 # This file is one of the two main files for computations.
@@ -167,7 +168,7 @@ def process_file(row, metric_set_name, annotations, lfreq, hfreq, montage, ep_st
 
 
 
-def process_experiment(config: dict, log_file: str):
+def process_experiment(config: dict, log_file: str, num_processes: int=4):
     """
     Processes experiments and their respective runs as specified in the YAML configuration.
 
@@ -217,10 +218,10 @@ def process_experiment(config: dict, log_file: str):
             print(f"Generated DataFrame with {len(files_df)} files:")
             # print(files_df.head())
 
-            # Use pandas apply to process files
-            files_df.apply(
+            n_chunks = max(len(files_df) // num_processes, 1)
+            num_processes = min(n_chunks, num_processes)
+            files_df.apply_parallel(
                 process_file,
-                axis=1,
                 metric_set_name=metric_set_name,
                 annotations=annotations,
                 lfreq=lfreq,
@@ -232,6 +233,9 @@ def process_experiment(config: dict, log_file: str):
                 ep_overlap=ep_overlap,
                 sfreq=sfreq,
                 recompute=recompute,
+                axis=0,
+                num_processes=num_processes,
+                n_chunks=n_chunks,
             )
     if log_file:
         log_stream.close()
