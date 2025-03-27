@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import sklearn.metrics.pairwise
 import sklearn.neighbors
+from icecream import ic
 from neurokit2 import signal_psd, complexity_embedding, find_knee, NeuroKitWarning
 from sklearn.decomposition import PCA
 #%% complexity implementation
@@ -268,6 +269,7 @@ def _complexity_lyapunov_rosenstein(
         signal, delay=1, dimension=2, separation=1, len_trajectory=20, show=False, **kwargs
 ):
     # 1. Check that sufficient data points are available
+    print(f'step: # 1. Check that sufficient data points are available')
     # Minimum length required to find single orbit vector
     min_len = (dimension - 1) * delay + 1
     # We need len_trajectory orbit vectors to follow a complete trajectory
@@ -282,6 +284,10 @@ def _complexity_lyapunov_rosenstein(
             " time series.",
             category=NeuroKitWarning,
         )
+    print(
+        f"for dimension={dimension}, delay={delay}, separation={separation} and "
+        f"len_trajectory={len_trajectory}, you need at least {min_len} datapoints in your"
+        f" time series, you have {len(signal)}",)
 
     # Embedding
     # opt_delay = nk.complexity_delay(signal)
@@ -290,17 +296,23 @@ def _complexity_lyapunov_rosenstein(
     # pca = pca(n_components=3)
     # principal_components = pca.fit_transform(opt_embedded)
     # embedded = principal_components
-    embedded = complexity_embedding(signal, delay=delay, dimension=dimension)
+    # 2. Create the embedding for the signal
+    print(f'step: # 2. Create the embedding for the signal')
+    embedded = complexity_embedding(signal, delay=delay, dimension=dimension, show=False)
     m = len(embedded)
+    print(f'Created embedded matrix of dimension=({np.shape(embedded)})')
 
     # Construct matrix with pairwise distances between vectors in orbit
+    print(f'step: # 3. Create a pointwise distance matrix of the reconstructed phase space')
     dists = sklearn.metrics.pairwise.euclidean_distances(embedded)
 
+    print(f'step: # 4. Ensure sufficient temporal seperation of neighbors')
     for i in range(m):
         # Exclude indices within separation
         dists[i, max(0, i - separation) : i + separation + 1] = np.inf
 
     # Find indices of nearest neighbours
+    print(f'step: # 5. Find the  nearest spatial neighbor for every point of the phase space')
     ntraj = m - len_trajectory + 1
     min_dist_indices = np.argmin(
         dists[:ntraj, :ntraj], axis=1
@@ -308,6 +320,7 @@ def _complexity_lyapunov_rosenstein(
     min_dist_indices = min_dist_indices.astype(int)
 
     # Follow trajectories of neighbour pairs for len_trajectory data points
+    print(f'step # 6. For a trajectory_length={len_trajectory} calculate the divergence between all spatial nearest neighbor points')
     trajectories = np.zeros(len_trajectory)
     for k in range(len_trajectory):
         divergence = dists[(np.arange(ntraj) + k, min_dist_indices + k)]
@@ -347,38 +360,38 @@ def _complexity_lyapunov_rosenstein(
 
 import neurokit2 as nk
 
-signal = nk.signal_simulate(duration=5, sampling_rate=200, frequency=[5, 6], noise=0.3)
-
+signal = nk.signal_simulate(duration=5, sampling_rate=200, frequency=[5, 6], noise=0.3, random_state=42)
+delay = 1
+dimension = 3
 
 # Rosenstein's method
-lle, info = complexity_lyapunov(signal, method="rosenstein", dimension=3,  show=True)
+embedded = complexity_embedding(signal, delay=delay, dimension=dimension, show=True)
+plt.title(f'Embedding of the signal that is processed\ndelay={delay} and dimension={dimension}')
+plt.show()
+lle, info = complexity_lyapunov(signal, method="rosenstein", dimension=dimension, delay=delay,  show=True)
 plt.show()
 
 #%%
-embedded = complexity_embedding(signal, delay=1, dimension=3)
-ax = plt.figure().add_subplot(111, projection="3d")
-ax.plot(embedded[:, 0], embedded[:, 1], embedded[:, 2])
-ax.set_title(f'delay = {1}, dimension = {3}')
+opt_delay = nk.complexity_delay(signal, show=True)
 plt.show()
-# Makowski's change-point method
-# lle, info = nk.complexity_lyapunov(signal, method="makowski", show=True)
-# plt.show()
+opt_dim = nk.complexity_dimension(signal, delay=opt_delay[0], show=True)
+plt.show()
+opt_dim2 = nk.complexity_dimension(signal, delay=1, show=True)
+plt.show()
+opt_embedded = complexity_embedding(signal, delay=opt_delay[0], dimension=opt_dim[0], show=True)
+plt.title(f'Embedding with joint optimal parameter estimation\n'
+          f'delay={opt_delay[0]} and dimension={opt_dim[0]}\n'
+          f'shown are just the last three dimensions')
+plt.tight_layout()
+plt.show()
+opt_embedded = complexity_embedding(signal, delay=opt_delay[0], dimension=opt_dim2[0], show=True)
+plt.title(f'Embedding with independent optimal parameter estimation\n'
+          f'delay={opt_delay[0]} and dimension={opt_dim2[0]}\n'
+          f'shown are just the last three dimensions')
+plt.tight_layout()
+plt.show()
 
-# Eckman's method is broken. Please help us fix-it!
-# lle, info = nk.complexity_lyapunov(signal, dimension=2, method="eckmann1986")
-#%%
-opt_delay = nk.complexity_delay(signal)
-opt_dim = nk.complexity_dimension(signal)
-opt_embedded = complexity_embedding(signal, delay=opt_delay[0], dimension=opt_dim[0])
-opt_ax = plt.figure().add_subplot(111, projection="3d")
-opt_ax.plot(opt_embedded[:, 0], opt_embedded[:, 1], opt_embedded[:, 2])
-opt_ax.set_title(f'first three of the six dimensions:\ndelay = {opt_delay[0]}, dimension = {opt_dim[0]}')
-plt.show()
 
 #instead of plotting the first three dimensions we will create the pca of the components and plot those
 pca = PCA(n_components=3)
 principal_components = pca.fit_transform(opt_embedded)
-pca_ax = plt.figure().add_subplot(111, projection="3d")
-pca_ax.plot(principal_components[:, 0], principal_components[:, 1], principal_components[:, 2])
-pca_ax.set_title(f'PCA dimensions:\ndelay = {opt_delay[0]}, dimension = {opt_dim[0]}')
-plt.show()

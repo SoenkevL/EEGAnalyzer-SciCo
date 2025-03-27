@@ -2,6 +2,42 @@
 
 This document explains Rosenstein's method for calculating the largest Lyapunov exponent (LLE), a measure of the rate at which nearby trajectories diverge in a dynamical system. A positive LLE is a hallmark of chaotic behavior. The method involves reconstructing the system's dynamics in a phase space, identifying nearest neighbors, tracking their trajectories, and estimating the LLE from the average rate of divergence. The following sections provide a detailed breakdown of each step, with a particular focus on the process of finding and tracking nearest neighbors.
 
+# Process Overview
+
+The process involves several key steps:
+
+1. **Input Validation**:
+   - Ensures data meets specified criteria based on parameters.
+   
+2. **Phase Space Reconstruction**:
+   - Converts input signal into a higher-dimensional space using time delays.
+   - Enhances understanding of system dynamics.
+
+3. **Pairwise Distance Calculation**:
+   - Computes distances between all pairs of points in the reconstructed phase space.
+   - Forms a distance matrix.
+
+4. **Temporal Neighbor Exclusion**:
+   - Removes close temporal neighbors by setting their distances to infinity.
+   - Prevents them from being selected as nearest neighbors.
+
+5. **Nearest Neighbor Identification**:
+   - Identifies closest non-temporal neighbor for each point in phase space.
+
+6. **Trajectory Tracking and Divergence Calculation**:
+   - Tracks evolution of original points and identified neighbors over time.
+   - Calculates divergence rates at each step.
+
+7. **Lyapunov Exponent Estimation**:
+   - Fits a linear model to divergence rates.
+   - Estimates the largest Lyapunov exponent, quantifying system sensitivity to initial conditions.
+
+8. **Result Storage**:
+   - Organizes and stores computed parameters and divergence rates for further analysis.
+
+# Detailed process
+Here the above steps are described in more detail based on their implementation of the code
+
 ## 1. Input Validation and Data Sufficiency Check
 
 *   **Purpose:** Ensure that the input signal has enough data points to perform the calculations reliably, given the chosen parameters.
