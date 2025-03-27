@@ -1,14 +1,12 @@
-Lempel Ziv complexity is a timeseries measure originally designed for binary sequences. It can be applied to any timeseries signal by symbolizing the signal, mostly arround its mean. It is commonly used within timeseries analysis as a measure for the complexity of a series of symbols. It's basic working mechanism lies in finding a unique set of substrings that the full signal is comprised off. Another very common mode of application lies in the compression algorithm LZ76 which uses this method to compress timeseries using these unique individual substrings
+# Lempel Ziv complexity
+## short description
+Lempel Ziv complexity is a timeseries measure originally designed for binary sequences.
+It can be applied to any timeseries signal by symbolizing the signal, mostly arround its mean.
+It is commonly used within timeseries analysis as a measure for the complexity of a series of symbols.
+It's basic working mechanism lies in finding a unique set of substrings that the full signal is comprised off.
+Another very common mode of application lies in the compression algorithm LZ76 which uses this method to compress timeseries using these unique individual substrings
 
-
-I find the mathematics behind it still quite hard to grasp sometimes as I struggle a bit with the pattern matching part
-
-TODO: take a deeper look again at the algorithm and how it finds the substrings / which substrings it extracts
--> with this also look at how the compression of the string works and how it relates to the final complexity of the string
-
-I went ahead and analyzed the version from neurokit2. The code was allready well documented
-
-chat gpt explanation from proper search string:
+## Step by step explanation of the process using an example signal
 ### **Step 1: Initializing the Process**
 
 We start by comparing the first bits:
@@ -216,3 +214,5 @@ By applying **Lempel-Ziv compression**, we efficiently detect and encode repeate
 ```
 
 This process optimizes the data storage while maintaining the structure of the original signal.
+
+## Sources
