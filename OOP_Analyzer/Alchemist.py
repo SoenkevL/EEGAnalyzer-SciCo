@@ -68,9 +68,21 @@ class MetricResults(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     parameter_id = mapped_column(ForeignKey("metric_parameter.id"), nullable=False)
     result_path: Mapped[str] = mapped_column(String, nullable=False)
-    result_table_name: Mapped[str] = mapped_column(String, nullable=True) #for storing results within the same db as seperate tables
+    start_sample: Mapped[int]
+    end_sample: Mapped[int]
 
     metric_parameter: Mapped[MetricParameters] = relationship(back_populates='results')
+    results_data: Mapped[List['MetricResultsData']] = relationship(back_populates='metric_result')
+
+class MetricResultsData(Base):
+    def __init__(self, table_name: str):
+        super().__init__()  # Properly initialize the superclass
+        self.__tablename__ = table_name  # Set the table name
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    result_id = mapped_column(ForeignKey("metric_result.id"), nullable=False)
+    metric_result: Mapped[MetricResults] = relationship(back_populates='results_data')
+
 
 def initialize_tables(path=None, path_is_relative=True):
     if path:
