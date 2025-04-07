@@ -1,6 +1,9 @@
+import uuid
+from functools import partial
 import numpy as np
+import pandas as pd
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, Session
-from sqlalchemy import MetaData, ForeignKey, Table, Column, Integer, String, create_engine, text
+from sqlalchemy import MetaData, ForeignKey, Table, Column, Integer, String, create_engine, text, BIGINT
 from sqlalchemy.exc import SQLAlchemyError
 from typing import List, Optional
 # declaring a shorthand for the declarative base class
@@ -12,20 +15,20 @@ class Base(DeclarativeBase):
 class DataSet(Base):
     __tablename__ = "dataset"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[str] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     path_from_root: Mapped[str] = mapped_column(String, nullable=False)
     path_from_project: Mapped[Optional[str]]
     description: Mapped[Optional[str]]
 
 
-    eegs: Mapped[List["EEG"]] = relationship(back_populates="dataset_id")
+    eegs: Mapped[List["EEG"]] = relationship(back_populates="dataset")
 
 
 class EEG(Base):
     __tablename__ = "EEG"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[str] = mapped_column(primary_key=True)
     dataset_id = mapped_column(ForeignKey("dataset.id"))
     filename: Mapped[str] = mapped_column(String, nullable=False)
     filetype: Mapped[str] = mapped_column(String, nullable=False)
@@ -39,21 +42,21 @@ class EEG(Base):
 class Metric(Base):
     __tablename__ = "metric"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[str] = mapped_column(primary_key=True)
     eeg_id = mapped_column(ForeignKey("EEG.id"), nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
 
     eeg: Mapped[EEG] = relationship(back_populates='metrics')
-    processing_params: Mapped[List['MetricParameters']] = relationship(back_populates='parent_metric')
+    processing_params: Mapped[List['MetricParameters']] = relationship(back_populates='metric')
 
 
 class MetricParameters(Base):
     __tablename__ = "metric_parameter"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[str] = mapped_column(primary_key=True)
     metric_id = mapped_column(ForeignKey("metric.id"), nullable=False)
+    signal_len: Mapped[Optional[int]]
     description: Mapped[Optional[str]]
-    signal_len: Mapped[int]
     fs: Mapped[Optional[int]]
     window_len: Mapped[Optional[int]]
     window_overlap: Mapped[Optional[int]]
@@ -61,29 +64,25 @@ class MetricParameters(Base):
     upper_cutoff: Mapped[Optional[float]]
     montage: Mapped[Optional[str]]
 
+    metric: Mapped[Metric] = relationship(back_populates='processing_params')
     results: Mapped[List['MetricResults']] = relationship(back_populates="metric_parameter")
 
 
 class MetricResults(Base):
     __tablename__ = "metric_result"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[str] = mapped_column(primary_key=True)
     parameter_id = mapped_column(ForeignKey("metric_parameter.id"), nullable=False)
     result_path: Mapped[str] = mapped_column(String, nullable=False)
-    start_sample: Mapped[int]
-    end_sample: Mapped[int]
 
     metric_parameter: Mapped[MetricParameters] = relationship(back_populates='results')
     results_data: Mapped[List['MetricResultsData']] = relationship(back_populates='metric_result')
-
-# TODO: I missunderstood something general, creating this class means creating the table
-#  I should rather have a function which creates a new table at runtime for my results if needed and updates the database
 
 def add_result_data_table(engine, tablename: str):
     class MetricResultsData(Base):
         __tablename__ = tablename
 
-        id: Mapped[int] = mapped_column(primary_key=True)
+        id: Mapped[str] = mapped_column(primary_key=True)
         result_id = mapped_column(ForeignKey("metric_result.id"), nullable=False)
         metric_result: Mapped[MetricResults] = relationship(back_populates='results_data')
     Base.metadata.create_all(bind=engine)
@@ -166,7 +165,43 @@ def test_dbcreation(db_path:str =None):
     remove_column(engine, 'test', 'test')
     add_multiple_columns(engine, 'test', ['test1', 'test2', 'test3'], 'INTEGER')
     remove_table(engine, 'test')
+    return engine
+
+def test_adding_data(engine):
+    # create mock data
+    data = pd.DataFrame(columns=['a', 'b', 'c'], data=[[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    # populate some examples into the metadata tables
+    dataset = DataSet(id=str(uuid.uuid4()), name='moc_dataset', path_from_root='')
+    eeg = EEG(id=str(uuid.uuid4()), filename='', filetype='EEG', filepath='')
+    metric = Metric(id=str(uuid.uuid4()), name='test_metric')
+    metric_param_id = str(uuid.uuid4())
+    metric_params = MetricParameters(id=str(uuid.uuid4()))
+    dataset.eegs.append(eeg)
+    eeg.metrics.append(metric)
+    metric.processing_params.append(metric_params)
+    with Session(engine) as session:
+        session.add(dataset)
+        session.add(eeg)
+        session.add(metric)
+        session.add(metric_params)
+        session.commit()
+    adding_data(engine, 'test_data', metric_param_id, '', data)
+
+def adding_data(engine, table_name:str, parameter_id: str, result_path: str, data: pd.DataFrame):
+    add_result_data_table(engine, table_name)
+    try:
+        # Add string UUID and parameter_id to the DataFrame
+        data['id'] = [str(uuid.uuid4()) for _ in range(len(data))]
+        # data['id'] = 1
+        data['parameter_id'] = parameter_id
+        data['result_path'] = result_path
+        # Add a new table if it doesn't exist and insert data
+        data.to_sql(table_name, con=engine, if_exists='replace', index=False)
+        print(f"Data inserted into table {table_name} successfully.")
+    except SQLAlchemyError as e:
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
     db_path = 'test.sqlite'
-    test_dbcreation(db_path)
+    engine = test_dbcreation(db_path)
+    test_adding_data(engine)
