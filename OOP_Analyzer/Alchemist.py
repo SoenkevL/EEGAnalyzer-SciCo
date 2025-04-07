@@ -3,7 +3,7 @@ from functools import partial
 import numpy as np
 import pandas as pd
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, Session
-from sqlalchemy import MetaData, ForeignKey, Table, Column, Integer, String, create_engine, text, BIGINT
+from sqlalchemy import MetaData, ForeignKey, Table, Column, Integer, String, create_engine, text, BIGINT, select
 from sqlalchemy.exc import SQLAlchemyError
 from typing import List, Optional
 # declaring a shorthand for the declarative base class
@@ -17,8 +17,7 @@ class DataSet(Base):
 
     id: Mapped[str] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    path_from_root: Mapped[str] = mapped_column(String, nullable=False)
-    path_from_project: Mapped[Optional[str]]
+    path: Mapped[str]
     description: Mapped[Optional[str]]
 
 
@@ -76,15 +75,17 @@ class MetricResults(Base):
     result_path: Mapped[str] = mapped_column(String, nullable=False)
 
     metric_parameter: Mapped[MetricParameters] = relationship(back_populates='results')
-    results_data: Mapped[List['MetricResultsData']] = relationship(back_populates='metric_result')
+    # results_data: Mapped[List['MetricResultsData']] = relationship(back_populates='metric_result')
 
+
+# functions to deal with the data objects
 def add_result_data_table(engine, tablename: str):
     class MetricResultsData(Base):
         __tablename__ = tablename
 
         id: Mapped[str] = mapped_column(primary_key=True)
         result_id = mapped_column(ForeignKey("metric_result.id"), nullable=False)
-        metric_result: Mapped[MetricResults] = relationship(back_populates='results_data')
+        # metric_result: Mapped[MetricResults] = relationship(back_populates='results_data')
     Base.metadata.create_all(bind=engine)
 
 def remove_table(engine, table_name: str):
@@ -147,6 +148,24 @@ def remove_column(engine, table_name, column_name):
     except SQLAlchemyError as e:
         print(f"Error: {e}")
 
+def find_entries(engine, table_class, **kwargs):
+    """
+    Check if an entry exists in the table based on given parameters.
+
+    :param engine: SQLAlchemy engine connected to the database.
+    :param table_class: The ORM class representing the table.
+    :param kwargs: Column-value pairs to filter the query.
+    :return: True if the entry exists, False otherwise.
+    """
+    try:
+        with Session(engine) as session:
+            query = select(table_class).filter_by(**kwargs)
+            result = session.scalars(query).all()
+            return result
+    except SQLAlchemyError as e:
+        print(f"Error: {e}")
+        return []
+
 def initialize_tables(path=None, path_is_relative=True):
     if path:
         if path_is_relative:
@@ -157,6 +176,20 @@ def initialize_tables(path=None, path_is_relative=True):
         engine = create_engine("sqlite+pysqlite://:memory:")
     Base.metadata.create_all(bind=engine)
     return engine
+
+def adding_data(engine, table_name:str, parameter_id: str, result_path: str, data: pd.DataFrame):
+    add_result_data_table(engine, table_name)
+    try:
+        # Add string UUID and parameter_id to the DataFrame
+        data['id'] = [str(uuid.uuid4()) for _ in range(len(data))]
+        # data['id'] = 1
+        data['parameter_id'] = parameter_id
+        data['result_path'] = result_path
+        # Add a new table if it doesn't exist and insert data
+        data.to_sql(table_name, con=engine, if_exists='replace', index=False)
+        print(f"Data inserted into table {table_name} successfully.")
+    except SQLAlchemyError as e:
+        print(f"Error: {e}")
 
 def test_dbcreation(db_path:str =None):
     engine = initialize_tables(db_path)
@@ -171,7 +204,7 @@ def test_adding_data(engine):
     # create mock data
     data = pd.DataFrame(columns=['a', 'b', 'c'], data=[[1, 2, 3], [4, 5, 6], [7, 8, 9]])
     # populate some examples into the metadata tables
-    dataset = DataSet(id=str(uuid.uuid4()), name='moc_dataset', path_from_root='')
+    dataset = DataSet(id=str(uuid.uuid4()), name='moc_dataset', path='')
     eeg = EEG(id=str(uuid.uuid4()), filename='', filetype='EEG', filepath='')
     metric = Metric(id=str(uuid.uuid4()), name='test_metric')
     metric_param_id = str(uuid.uuid4())
@@ -187,19 +220,6 @@ def test_adding_data(engine):
         session.commit()
     adding_data(engine, 'test_data', metric_param_id, '', data)
 
-def adding_data(engine, table_name:str, parameter_id: str, result_path: str, data: pd.DataFrame):
-    add_result_data_table(engine, table_name)
-    try:
-        # Add string UUID and parameter_id to the DataFrame
-        data['id'] = [str(uuid.uuid4()) for _ in range(len(data))]
-        # data['id'] = 1
-        data['parameter_id'] = parameter_id
-        data['result_path'] = result_path
-        # Add a new table if it doesn't exist and insert data
-        data.to_sql(table_name, con=engine, if_exists='replace', index=False)
-        print(f"Data inserted into table {table_name} successfully.")
-    except SQLAlchemyError as e:
-        print(f"Error: {e}")
 
 if __name__ == "__main__":
     db_path = 'test.sqlite'

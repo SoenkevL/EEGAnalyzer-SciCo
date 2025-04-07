@@ -1,11 +1,14 @@
 import argparse
 import os
 import sys
+import uuid
+
 import yaml
 import pandas as pd
 from datetime import datetime
 from EEG_processor import EEG_processor
 from CSV_processor import CSVProcessor
+import Alchemist
 from multiprocesspandas import applyparallel
 
 
@@ -99,10 +102,11 @@ def get_files_dataframe(bids_folder: str, infile_ending: str, outfile_ending: st
 
     # Create the DataFrame from the collected information
     df = pd.DataFrame(valid_files, columns=['file_path', 'outpath', 'already_processed'])
+
     return df
 
 
-def process_file(row, metric_set_name, annotations, lfreq, hfreq, montage, ep_start, ep_stop, ep_dur, ep_overlap, sfreq,
+def process_file(row, sqlite_path, dataset_id, metric_set_name, annotations, lfreq, hfreq, montage, ep_start, ep_stop, ep_dur, ep_overlap, sfreq,
                  recompute):
     """
     Processes a single file.
@@ -131,7 +135,7 @@ def process_file(row, metric_set_name, annotations, lfreq, hfreq, montage, ep_st
 
         # Initialize EEG_processor and compute metrics
         if file_path.endswith(".fif") or file_path.endswith(".edf"):
-            eeg_processor = EEG_processor(file_path)
+            eeg_processor = EEG_processor(file_path, sqlite_path, dataset_id)
             result = eeg_processor.compute_metrics(
                 metric_set_name,
                 annotations,
@@ -166,7 +170,28 @@ def process_file(row, metric_set_name, annotations, lfreq, hfreq, montage, ep_st
     else:
         print(f"Skipping already processed file: {file_path}")
 
-
+def add_or_update_dataset(config):
+    # Try to connect to the sql database
+    engine = Alchemist.initialize_tables(config['sqlite_path'])
+    # Add a dataset to the sqlite database
+    with Alchemist.Session(engine) as session:
+        dataset_name = config['name']
+        dataset_path = config['bids_folder']
+        dataset_description = config['description']
+        # check if the dataset allready exists in our database
+        matching_datasets = Alchemist.find_entries(engine, Alchemist.DataSet, name=dataset_name, path=dataset_path)
+        if len(matching_datasets) == 0:
+            dataset = Alchemist.DataSet(id=str(uuid.uuid4().hex), name=dataset_name, path=dataset_path, description=dataset_description)
+            session.add(dataset)
+        elif len(matching_datasets) == 1:
+            print('found matching dataset sqlite databse, updating description if necessary')
+            dataset = matching_datasets[0]
+            dataset.description = dataset_description
+        else:
+            print('Multiple datasets in the database that match name and path, please manually check')
+            return None
+        session.commit()
+    return dataset
 
 def process_experiment(config: dict, log_file: str, num_processes: int=4):
     """
@@ -181,6 +206,7 @@ def process_experiment(config: dict, log_file: str, num_processes: int=4):
         log_stream = open(log_file, 'w')
         sys.stdout = log_stream  # Redirect print statements to log file
     print(f'{"*" * 102}\n{"*" * 40} {datetime.today().strftime("%Y-%m-%d %H:%M:%S")} {"*" * 40}\n{"*" * 102}\n')
+
 
     # Iterate through experiments defined in the configuration
     for experiment in config['experiments']:
@@ -199,6 +225,9 @@ def process_experiment(config: dict, log_file: str, num_processes: int=4):
             epoching['overlap'],
         )
         metric_set_name = experiment['metric_set_name']
+
+        # add or update dataset in sqlite database
+        dataset = add_or_update_dataset(experiment)
 
         # Iterate through runs for each experiment
         for run in experiment['runs']:
@@ -220,8 +249,11 @@ def process_experiment(config: dict, log_file: str, num_processes: int=4):
 
             n_chunks = max(len(files_df) // num_processes, 1)
             num_processes = min(n_chunks, num_processes)
-            files_df.apply_parallel(
+            # files_df.apply_parallel(
+            files_df.apply(
                 process_file,
+                sqlite_path = experiment['sqlite_path'],
+                dataset_id = dataset.id,
                 metric_set_name=metric_set_name,
                 annotations=annotations,
                 lfreq=lfreq,
@@ -233,9 +265,10 @@ def process_experiment(config: dict, log_file: str, num_processes: int=4):
                 ep_overlap=ep_overlap,
                 sfreq=sfreq,
                 recompute=recompute,
-                axis=0,
-                num_processes=num_processes,
-                n_chunks=n_chunks,
+                axis=1,
+                # axis=0,
+                # num_processes=num_processes,
+                # n_chunks=n_chunks,
             )
     if log_file:
         log_stream.close()

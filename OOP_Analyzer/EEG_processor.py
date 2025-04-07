@@ -1,9 +1,13 @@
+import os
+import uuid
+
 import mne
 import pandas as pd
 from icecream import ic
 
 import Array_processor
 import Buttler
+import Alchemist
 
 
 class EEG_processor:
@@ -36,12 +40,40 @@ class EEG_processor:
     """
    
 
-    def __init__(self, datapath, preload: bool = True):
+    def __init__(self, datapath, sql_path, dataset_id, preload: bool = True):
         self.datapath = datapath
+        self.sqlpath = sql_path
+        self.datasetid = dataset_id
+        self.eeg_entry = self.initialize_eeg_entry()
         self.raw, self.sfreq = self.load_data_file(datapath, preload)
         self.info = self.raw.info
         self.buttler = Buttler.Buttler()
 
+    def initialize_eeg_entry(self):
+        # Add a eeg to the sqlite database
+        # Try to connect to the sql database
+        engine = Alchemist.initialize_tables(self.sqlpath)
+        with Alchemist.Session(engine) as session:
+            dataset_id = self.datasetid
+            filepath, filename = os.path.split(self.datapath)
+            filename, file_extension = os.path.splitext(filename)
+            # check if the eeg allready exists in our database
+            matching_eegs = Alchemist.find_entries(engine, Alchemist.EEG, dataset_id=dataset_id,
+                                                       filename=filename,
+                                                       filepath=filepath,
+                                                       filetype=file_extension)
+            if len(matching_eegs) == 0:
+                eeg = Alchemist.EEG(id=str(uuid.uuid4().hex), filename=filename, dataset_id=dataset_id,
+                                                       filepath=filepath, filetype=file_extension)
+                session.add(eeg)
+            elif len(matching_eegs) == 1:
+                print('found matching eeg in the dataset')
+                eeg = matching_eegs[0]
+            else:
+                print('Multiple eegs in the dataset that match, please manually check')
+                return None
+            session.commit()
+        return eeg
 
     def load_data_file(self, data_file: str, preload: bool = True):
         """
@@ -459,7 +491,8 @@ class EEG_processor:
     ########################################################################################################################
     ######################################## high level functions ##########################################################
     ########################################################################################################################
-    
+
+
     def compute_metrics(self, metric_set_name: str, annot: list, outfile: str, lfreq: int, hfreq: int,
                         montage: str, ep_start: int = None, ep_stop: int = None, ep_dur: int = None, overlap : int = 0,
                         resamp_freq=None, repeat_measurement: bool = False, include_chaos_pipe=True, multiprocess: bool = False) -> str:
@@ -533,6 +566,9 @@ class EEG_processor:
 
         # extract the task label in case only epoching is used to use as annot
         task_label = self.buttler.find_task_from_filename(self.datapath)
+
+        # make sure the eeg is part of sqlite databse
+
 
         # calculate the metrics
         full_results_frame = self.compute_metrics_fif(metric_set_name, annot, ep_dur, ep_start, ep_stop, overlap,
