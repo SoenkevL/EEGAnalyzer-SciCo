@@ -1,9 +1,7 @@
 import uuid
-from functools import partial
-import numpy as np
 import pandas as pd
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, Session
-from sqlalchemy import MetaData, ForeignKey, Table, Column, Integer, String, create_engine, text, BIGINT, select
+from sqlalchemy import ForeignKey, String, create_engine, text, select
 from sqlalchemy.exc import SQLAlchemyError
 from typing import List, Optional
 # declaring a shorthand for the declarative base class
@@ -109,8 +107,8 @@ def add_multiple_columns(engine, table_name: str, column_names: list[str], colum
 
     :param engine: SQLAlchemy engine connected to the database.
     :param table_name: Name of the table to which columns will be added.
-    :param columns: List of tuples, where each tuple contains the column name and column type.
-    :param type: sql type to apply to the added columns (should be the type of the data inserted)
+    :param column_names: List of tuples, where each tuple contains the column name and column type.
+    :param column_type: sql type to apply to the added columns (should be the type of the data inserted)
     """
     try:
         with Session(engine) as session:
@@ -265,14 +263,13 @@ def test_adding_data(engine):
     dataset.eegs.append(eeg)
     eeg.metric_sets.append(metric_set)
     metric_set.metrics.append(metric)
-    column_value_dict = get_column_value_pairs(metric)
     with Session(engine) as session:
         session.add(dataset)
         session.add(eeg)
         session.add(metric_set)
         session.add(metric)
         session.commit()
-    adding_data(engine, 'test_data', metric_id, '', data)
+    adding_data(engine, 'test_data', metric_id, data)
 
 
 if __name__ == "__main__":
