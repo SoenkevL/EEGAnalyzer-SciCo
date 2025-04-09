@@ -1,22 +1,24 @@
 import uuid
 import pandas as pd
+from datetime import datetime
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, Session
-from sqlalchemy import ForeignKey, String, create_engine, text, select
+from sqlalchemy import ForeignKey, String, create_engine, text, select, DateTime, func
 from sqlalchemy.exc import SQLAlchemyError
 from typing import List, Optional
 # declaring a shorthand for the declarative base class
 class Base(DeclarativeBase):
     pass
 
+
 # defining the classes for our project with the correct meta data
 class DataSet(Base):
     __tablename__ = "dataset"
 
     id: Mapped[str] = mapped_column(primary_key=True)
+    last_altered: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
     name: Mapped[str] = mapped_column(String, nullable=False)
     path: Mapped[str]
     description: Mapped[Optional[str]]
-
 
     eegs: Mapped[List["EEG"]] = relationship(back_populates="dataset")
 
@@ -25,6 +27,7 @@ class EEG(Base):
 
     id: Mapped[str] = mapped_column(primary_key=True)
     dataset_id = mapped_column(ForeignKey("dataset.id"))
+    last_altered: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
     filename: Mapped[str] = mapped_column(String, nullable=False)
     filetype: Mapped[str] = mapped_column(String, nullable=False)
     filepath: Mapped[str] = mapped_column(String, nullable=False)
@@ -38,6 +41,7 @@ class MetricSet(Base):
 
     id: Mapped[str] = mapped_column(primary_key=True)
     eeg_id = mapped_column(ForeignKey("eeg.id"), nullable=False)
+    last_altered: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[Optional[str]]
     signal_len: Mapped[Optional[int]]
@@ -56,6 +60,7 @@ class Metric(Base):
 
     id: Mapped[str] = mapped_column(primary_key=True)
     metric_set_id = mapped_column(ForeignKey("metricset.id"), nullable=False)
+    last_altered: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
     name: Mapped[str] = mapped_column(String, nullable=False)
     result_path: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[Optional[str]]
@@ -64,11 +69,12 @@ class Metric(Base):
 
 # functions to deal with the data objects
 def add_result_data_table(engine, tablename: str):
-    class MetricData(Base):
+    class MetricData(Base,):
         __tablename__ = tablename
 
         id: Mapped[str] = mapped_column(primary_key=True)
         metric_id = mapped_column(ForeignKey("metric.id"), nullable=False)
+        last_altered: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
     Base.metadata.create_all(bind=engine)
 
 def remove_table(engine, table_name: str, del_from_metadata = True):
@@ -126,7 +132,7 @@ def add_multiple_columns(engine, table_name: str, column_names: list[str], colum
             print(f"Columns commited successfully.")
     except SQLAlchemyError as e:
         print(f"Error: {e}")
-        
+
 def remove_column(engine, table_name, column_name):
     try:
         # Execute the ALTER TABLE command to drop the column
@@ -169,10 +175,11 @@ def initialize_tables(path=None, path_is_relative=True):
 def adding_data(engine, table_name:str, parameter_id: str, data: pd.DataFrame):
     add_result_data_table(engine, table_name)
     try:
-        # Add string UUID and parameter_id to the DataFrame
+        # Add string UUID, parameter_id, and last_altered to the DataFrame
         data['id'] = [str(uuid.uuid4()) for _ in range(len(data))]
         # data['id'] = 1
         data['parameter_id'] = parameter_id
+        data['last_altered'] = datetime.now()
         # Add a new table if it doesn't exist and insert data
         data.to_sql(table_name, con=engine, if_exists='replace', index=False)
         print(f"Data inserted into table {table_name} successfully.")
@@ -240,6 +247,7 @@ def test_adding_data(engine):
         name='EEG Study Dataset',
         path='/data/eeg_study',
         description='Dataset for EEG study on cognitive functions'
+        # last_altered will be set automatically
     )
     eeg = EEG(
         id=str(uuid.uuid4()),
@@ -247,11 +255,13 @@ def test_adding_data(engine):
         filetype='.edf',
         filepath='/data/eeg_study',
         description='EEG recording for subject 01, session 01'
+        # last_altered will be set automatically
     )
     metric_set = MetricSet(
         id=str(uuid.uuid4()),
         name='Alpha Band Power Analysis',
         description='Analysis of alpha band power for cognitive task performance'
+        # last_altered will be set automatically
     )
     metric_id = str(uuid.uuid4())
     metric = Metric(
@@ -259,6 +269,7 @@ def test_adding_data(engine):
         name='Alpha Power',
         result_path='/results/alpha_power_subject_01_session_01.csv',
         description='Computed alpha power for subject 01, session 01'
+        # last_altered will be set automatically
     )
     dataset.eegs.append(eeg)
     eeg.metric_sets.append(metric_set)
