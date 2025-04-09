@@ -191,7 +191,7 @@ def add_or_update_dataset(config):
             print('Multiple datasets in the database that match name and path, please manually check')
             return None
         session.commit()
-    return dataset
+    return dataset.id
 
 def process_experiment(config: dict, log_file: str, num_processes: int=4):
     """
@@ -227,7 +227,7 @@ def process_experiment(config: dict, log_file: str, num_processes: int=4):
         metric_set_name = experiment['metric_set_name']
 
         # add or update dataset in sqlite database
-        dataset = add_or_update_dataset(experiment)
+        dataset_id = add_or_update_dataset(experiment)
 
         # Iterate through runs for each experiment
         for run in experiment['runs']:
@@ -253,7 +253,7 @@ def process_experiment(config: dict, log_file: str, num_processes: int=4):
             files_df.apply(
                 process_file,
                 sqlite_path = experiment['sqlite_path'],
-                dataset_id = dataset.id,
+                dataset_id = dataset_id,
                 metric_set_name=metric_set_name,
                 annotations=annotations,
                 lfreq=lfreq,
