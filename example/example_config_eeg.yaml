@@ -5,6 +5,10 @@ experiments:
   - #checking the full signal for the whole recording time
     # name of the experiment for logging
     name: example
+    # further information on the dataset (can be left empty)
+    description: an example to test the pipeline
+    # sql database that stores information, can be shared for multiple datasets
+    sqlite_path: ./example/EEGAnalyzer.sqlite
     # root bids folder, should end in BIDS but not necessary, the folder (and subfolders) will be scanned for fif files
     bids_folder: ./example/eeg
     # input file type, the type of files that should be treated as valid input files

@@ -1,13 +1,9 @@
-import os
-import uuid
-
 import mne
 import pandas as pd
 from icecream import ic
 
 import Array_processor
 import Buttler
-import Alchemist
 
 
 class EEG_processor:
@@ -39,44 +35,16 @@ class EEG_processor:
     - `compute_metrics(name, annot, outfile, lfreq, hfreq, montage, ep_dur, ep_start, ep_stop, overlap, resamp_freq)`: Combines preprocessing and metric calculations for all or specific annotations and saves results to a file.
     """
 
-    def __init__(self, datapath, sql_path, dataset_id, preload: bool = True):
+    def __init__(self, datapath, preload: bool = True):
         self.datapath = datapath
-        self.sqlpath = sql_path
-        self.datasetid = dataset_id
-        self.eeg_entry = self.initialize_eeg_entry()
         self.raw, self.sfreq = self.load_data_file(datapath, preload)
         self.info = self.raw.info
         self.buttler = Buttler.Buttler()
 
-    def initialize_eeg_entry(self):
-        # Add a eeg to the sqlite database
-        # Try to connect to the sql database
-        engine = Alchemist.initialize_tables(self.sqlpath)
-        with Alchemist.Session(engine) as session:
-            dataset_id = self.datasetid
-            filepath, filename = os.path.split(self.datapath)
-            filename, file_extension = os.path.splitext(filename)
-            # check if the eeg allready exists in our database
-            matching_eegs = Alchemist.find_entries(engine, Alchemist.EEG, dataset_id=dataset_id,
-                                                       filename=filename,
-                                                       filepath=filepath,
-                                                       filetype=file_extension)
-            if len(matching_eegs) == 0:
-                eeg = Alchemist.EEG(id=str(uuid.uuid4().hex), filename=filename, dataset_id=dataset_id,
-                                                       filepath=filepath, filetype=file_extension)
-                session.add(eeg)
-            elif len(matching_eegs) == 1:
-                print('found matching eeg in the dataset')
-                eeg = matching_eegs[0]
-            else:
-                print('Multiple eegs in the dataset that match, please manually check')
-                return None
-            session.commit()
-        return eeg
-
     def load_data_file(self, data_file: str, preload: bool = True):
         """
         Loads an EEG file into an mne raw instance and extracts its sampling frequency.
+
         Performs basic file type validation to ensure compatibility.
 
         Inputs:
@@ -105,6 +73,7 @@ class EEG_processor:
     def load_data_of_raw_object(self):
         """
         Loads data from the raw EEG object into memory.
+
         This ensures that the raw object is fully loaded
         and ready for downstream processing.
         """
@@ -152,6 +121,7 @@ class EEG_processor:
     def ensure_electrodes_present(self, anodes, cathods, new_names):
         """
         checks if the anode and cathode for the bipolar reference are present, if not they will be dropped
+
         inputs:
         -anodes: a list of anode names which contains the name or None if the electrode is not present
         -cathodes: a list of cathode names which contains the name or None if the electrode is not present
@@ -176,8 +146,9 @@ class EEG_processor:
 
     def only_keep_10_20_channels_and_check_bipolar(self):
         """
-        Checks the EEG channels for containing a valid part, only once and no part that is marked as invalid in order to
-        only keep the correct EEG channels and marke others as bad
+        Checks the EEG channels for containing a valid part, only once and no part that is marked as invalid.
+
+        In order to only keep the correct EEG channels and marke others as bad
         returns True if two valid channel parts are in one channel
         inputs:
         -raw: raw instance from EEG
@@ -209,6 +180,7 @@ class EEG_processor:
     def convert_electrode_names_to_channel_names(self, electrode_names: list[str], channel_names: list[str]):
         """
         Goes through the electrode names and converts them to channel names if the electrode name is part of the channel name
+
         inputs:
         -electrode_names: names of the electrodes from the montage
         -channel_names: names of the channels after conversion to ensure unified names in the outputs
@@ -227,6 +199,7 @@ class EEG_processor:
     def change_montage(self, montage: str):
         """
         changes the montage of a raw instance
+
         input:
         -raw: raw instance of the EEG
         -montage: name of the montage, either 'avg', 'doublebanana', 'circumferential' or a specific channel
@@ -310,6 +283,7 @@ class EEG_processor:
     def extract_eeg_columns(self, eeg_dataframe):
         """
         Extracts all besides the first column from the eeg dataframe
+
         inputs:
         -dataframe with eeg data
         returns:
@@ -489,89 +463,52 @@ class EEG_processor:
     ######################################## high level functions ##########################################################
     ########################################################################################################################
 
-    def initialize_metric_set(self, metric_set_name: str, lfreq: float = None, hfreq: float = None,
-                             ep_dur: int = None, ep_overlap: int = None, montage: str = None) -> Alchemist.MetricSet:
-        """Initialize or retrieve a MetricSet entry in the database"""
-        engine = Alchemist.initialize_tables(self.sqlpath)
-        with Alchemist.Session(engine) as session:
-            # Check if metric set already exists for this EEG
-            matching_sets = Alchemist.find_entries(
-                engine,
-                Alchemist.MetricSet,
-                eeg_id=self.eeg_entry.id,
-                name=metric_set_name
-            )
-
-            if len(matching_sets) == 0:
-                metric_set = Alchemist.MetricSet(
-                    id=str(uuid.uuid4().hex),
-                    eeg_id=self.eeg_entry.id,
-                    name=metric_set_name,
-                    signal_len=len(self.raw.times) if self.raw else None,
-                    fs=self.sfreq,
-                    window_len=ep_dur,
-                    window_overlap=ep_overlap,
-                    lower_cutoff=lfreq,
-                    upper_cutoff=hfreq,
-                    montage=montage
-                )
-                session.add(metric_set)
-                session.commit()
-                return metric_set
-            elif len(matching_sets) == 1:
-                return matching_sets[0]
-            else:
-                raise ValueError(f"Multiple metric sets found for {metric_set_name}")
-
-    def add_metric_result(self, metric_set: Alchemist.MetricSet, metric_name: str,
-                         result_path: str, description: str = None) -> Alchemist.Metric:
-        """Add a metric result to the database if no duplicate entry exists
-
-        Checks if a metric with the same combination of metric_set_id, name, result_path,
-        and description already exists in the database. If a duplicate is found, returns
-        the existing metric instead of creating a new one.
-        """
-        engine = Alchemist.initialize_tables(self.sqlpath)
-
-        # Check if a metric with the same attributes already exists
-        matching_metrics = Alchemist.find_entries(
-            engine,
-            Alchemist.Metric,
-            metric_set_id=metric_set.id,
-            name=metric_name,
-            result_path=result_path,
-            description=description
-        )
-
-        # If a matching metric is found, return it instead of creating a new one
-        if matching_metrics:
-            print(f"Metric with the same attributes already exists. Using existing metric.")
-            return matching_metrics[0]
-
-        # Otherwise, create and add a new metric
-        with Alchemist.Session(engine) as session:
-            metric = Alchemist.Metric(
-                id=str(uuid.uuid4().hex),
-                metric_set_id=metric_set.id,
-                name=metric_name,
-                result_path=result_path,
-                description=description
-            )
-            session.add(metric)
-            session.commit()
-            return metric
-
     def compute_metrics(self, metric_set_name: str, annot: list, outfile: str, lfreq: int, hfreq: int,
-                       montage: str, ep_start: int = None, ep_stop: int = None, ep_dur: int = None,
-                       overlap: int = 0, resamp_freq=None, repeat_measurement: bool = False,
-                       include_chaos_pipe=True) -> str:
-        """Modified compute_metrics to track metric computation in database"""
-        try:
-            # Initialize metric set in database
-            metric_set = self.initialize_metric_set(
-                metric_set_name, lfreq, hfreq, ep_dur, overlap, montage
-            )
+                        montage: str, ep_start: int = None, ep_stop: int = None, ep_dur: int = None, overlap : int = 0,
+                        resamp_freq=None, repeat_measurement: bool = False, include_chaos_pipe=True, multiprocess: bool = False) -> str:
+        """
+        Compute metrics for EEG processing
 
+        using filtering, re-montaging, resampling, and metric calculations on individual EEG channels
+        This is the primary function for processing and analyzing EEG data.
+
+        Args:
+        - metric_set_name (str): Name of the metric set to calculate.
+        - annot (list): List of annotations to use. Should match the names in the infile annotations.
+                        If not provided, will use all annotations with a positive duration.
+        - outfile (str): File path where the resulting metrics (CSV) will be saved.
+        - lfreq (int): High-pass frequency cutoff for filtering data before metric calculations.
+        - hfreq (int): Low-pass frequency cutoff for filtering data before metric calculations.
+                       The filter allows frequencies between lfreq and hfreq to pass.
+        - montage (str): Name of the montage to apply. Valid options are:
+                         'avg', specific reference channel, 'doublebanana', 'circumferential'.
+        - ep_start (int, optional): Start offset for epoching in seconds, relative to the beginning
+                                     of the file or annotation. Defaults to 0.
+        - ep_stop (int, optional): Stop offset for epoching in seconds, relative to the beginning
+                                    of the file or annotation. Defaults to the length of the file or annotation.
+        - ep_dur (int, optional): Duration of individual epochs in seconds. Defaults to the length
+                                   of the file or annotation.
+        - overlap (int, optional): Amount of overlap between epochs in seconds. Defaults to 0.
+        - resamp_freq (int, optional): Frequency to which the data will be downsampled. Defaults to None
+                                       (no downsampling).
+        - repeat_measurement (bool, optional): If True and the metrics CSV file already exists, the
+                                               calculation is redone, and the existing file is overwritten.
+                                               If False, existing metrics are reused, and computation is skipped.
+        - include_chaos_pipe (bool, optional): If True, includes the pipeline by Toker. Requires a valid
+                                               MATLAB version with the pipeline accessible in its path.
+        - multiprocess (bool, optional): If True, enables multiprocessing for metric computations. Defaults to False.
+
+        Returns:
+        - str: A message indicating the outcome of the processing. Possible messages:
+               * 'finished and saved successfully': When computation and saving succeed.
+               * 'no metrics could be calculated': When no metrics are computed.
+               * Other messages depending on the checks performed in the function.
+
+        Outputs:
+        - Saves a CSV file with computed metrics at the specified `outfile` location.
+        """
+
+        try:
             # check the name of the outfile
             outfile_check, outfile_check_message = self.buttler.check_outfile_name(outfile,
                                                                                    file_exists_ok=repeat_measurement)
@@ -608,18 +545,11 @@ class EEG_processor:
                 metric_set_name, annot, ep_dur, ep_start, ep_stop, overlap
             )
 
+            # save dataframe to csv
             if not full_results_frame.empty:
-                # Save results and track in database
                 full_results_frame.to_csv(outfile)
-                self.add_metric_result(
-                    metric_set=metric_set,
-                    metric_name=metric_set_name,
-                    result_path=outfile,
-                    description=f"Metrics computed with parameters: lfreq={lfreq}, hfreq={hfreq}, ep_dur={ep_dur}"
-                )
                 return 'finished and saved successfully'
             else:
                 return 'no metrics could be calculated'
-
         except Exception as e:
             return f'Error during metric computation: {str(e)}'

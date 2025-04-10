@@ -63,7 +63,7 @@ def load_yaml_file(yaml_filepath: str) -> dict:
 
 def get_files_dataframe(bids_folder: str, infile_ending: str, outfile_ending: str, folder_extensions: str) -> pd.DataFrame:
     """
-    Creates a DataFrame containing valid file paths, their corresponding output paths, 
+    Creates a DataFrame containing valid file paths, their corresponding output paths,
     and the processed status (whether the output file already exists).
 
     Args:
@@ -106,7 +106,7 @@ def get_files_dataframe(bids_folder: str, infile_ending: str, outfile_ending: st
     return df
 
 
-def process_file(row, sqlite_path, dataset_id, metric_set_name, annotations, lfreq, hfreq, montage, ep_start, ep_stop, ep_dur, ep_overlap, sfreq,
+def process_file(row, metric_set_name, annotations, lfreq, hfreq, montage, ep_start, ep_stop, ep_dur, ep_overlap, sfreq,
                  recompute):
     """
     Processes a single file.
@@ -135,7 +135,7 @@ def process_file(row, sqlite_path, dataset_id, metric_set_name, annotations, lfr
 
         # Initialize EEG_processor and compute metrics
         if file_path.endswith(".fif") or file_path.endswith(".edf"):
-            eeg_processor = EEG_processor(file_path, sqlite_path, dataset_id)
+            eeg_processor = EEG_processor(file_path)
             result = eeg_processor.compute_metrics(
                 metric_set_name,
                 annotations,
@@ -171,27 +171,21 @@ def process_file(row, sqlite_path, dataset_id, metric_set_name, annotations, lfr
         print(f"Skipping already processed file: {file_path}")
 
 def add_or_update_dataset(config):
-    # Try to connect to the sql database
-    engine = Alchemist.initialize_tables(config['sqlite_path'])
-    # Add a dataset to the sqlite database
-    with Alchemist.Session(engine) as session:
-        dataset_name = config['name']
-        dataset_path = config['bids_folder']
-        dataset_description = config['description']
-        # check if the dataset allready exists in our database
-        matching_datasets = Alchemist.find_entries(engine, Alchemist.DataSet, name=dataset_name, path=dataset_path)
-        if len(matching_datasets) == 0:
-            dataset = Alchemist.DataSet(id=str(uuid.uuid4().hex), name=dataset_name, path=dataset_path, description=dataset_description)
-            session.add(dataset)
-        elif len(matching_datasets) == 1:
-            print('found matching dataset sqlite databse, updating description if necessary')
-            dataset = matching_datasets[0]
-            dataset.description = dataset_description
-        else:
-            print('Multiple datasets in the database that match name and path, please manually check')
-            return None
-        session.commit()
-    return dataset.id
+    """
+    Add or update a dataset in the database.
+
+    Args:
+        config (dict): Configuration dictionary containing dataset information.
+
+    Returns:
+        DataSet: The dataset object that was added or updated.
+    """
+    return Alchemist.add_or_update_dataset(
+        sqlpath=config['sqlite_path'],
+        dataset_name=config['name'],
+        dataset_path=config['bids_folder'],
+        dataset_description=config['description']
+    )
 
 def process_experiment(config: dict, log_file: str, num_processes: int=4):
     """
@@ -228,6 +222,7 @@ def process_experiment(config: dict, log_file: str, num_processes: int=4):
 
         # add or update dataset in sqlite database
         dataset_id = add_or_update_dataset(experiment)
+        print(f"Using dataset ID: {dataset_id}")
 
         # Iterate through runs for each experiment
         for run in experiment['runs']:
@@ -249,11 +244,8 @@ def process_experiment(config: dict, log_file: str, num_processes: int=4):
 
             n_chunks = max(len(files_df) // num_processes, 1)
             num_processes = min(n_chunks, num_processes)
-            # files_df.apply_parallel(
-            files_df.apply(
+            files_df.apply_parallel(
                 process_file,
-                sqlite_path = experiment['sqlite_path'],
-                dataset_id = dataset_id,
                 metric_set_name=metric_set_name,
                 annotations=annotations,
                 lfreq=lfreq,
@@ -265,11 +257,16 @@ def process_experiment(config: dict, log_file: str, num_processes: int=4):
                 ep_overlap=ep_overlap,
                 sfreq=sfreq,
                 recompute=recompute,
-                axis=1,
-                # axis=0,
-                # num_processes=num_processes,
-                # n_chunks=n_chunks,
+                axis=0,
+                num_processes=num_processes,
+                n_chunks=n_chunks,
             )
+
+    # Print a final message indicating completion
+    print(f"\n{'*' * 50}")
+    print(f"All processing complete. Results stored in database: {experiment['sqlite_path']}")
+    print(f"{'*' * 50}\n")
+
     if log_file:
         log_stream.close()
 
