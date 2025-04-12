@@ -2,19 +2,18 @@ import uuid
 import pandas as pd
 from datetime import datetime
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, Session
-from sqlalchemy import ForeignKey, String, create_engine, text, select, DateTime, func
+from sqlalchemy import ForeignKey, String, create_engine, text, select, DateTime, func, Integer, Table, Column
 from sqlalchemy.exc import SQLAlchemyError
-from typing import List, Optional
+from typing import List, Optional, Union
 # declaring a shorthand for the declarative base class
 class Base(DeclarativeBase):
     pass
-
 
 # defining the classes for our project with the correct meta data
 class DataSet(Base):
     __tablename__ = "dataset"
 
-    id: Mapped[str] = mapped_column(primary_key=True)
+    id: Mapped[str] = mapped_column(primary_key=True, default=str(uuid.uuid4().hex))
     last_altered: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
     name: Mapped[str] = mapped_column(String, nullable=False)
     path: Mapped[str]
@@ -25,89 +24,49 @@ class DataSet(Base):
 class EEG(Base):
     __tablename__ = "eeg"
 
-    id: Mapped[str] = mapped_column(primary_key=True)
+    id = mapped_column(String, primary_key=True, default=str(uuid.uuid4().hex))
     dataset_id = mapped_column(ForeignKey("dataset.id"))
-    last_altered: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
-    filename: Mapped[str] = mapped_column(String, nullable=False)
-    filetype: Mapped[str] = mapped_column(String, nullable=False)
-    filepath: Mapped[str] = mapped_column(String, nullable=False)
+    last_altered = mapped_column(DateTime, default=func.now(), onupdate=func.now())
+    filename = mapped_column(String, nullable=False)
+    filetype = mapped_column(String, nullable=False)
+    filepath = mapped_column(String, nullable=False)
     description: Mapped[Optional[str]]
 
     dataset: Mapped[DataSet] = relationship(back_populates='eegs')
-    metric_sets: Mapped[List['MetricSet']] = relationship(back_populates='eegs')
+    # experiments: Mapped[List['Experiment']] = relationship(back_populates='eegs', secondary="association_table")
+    experiments: Mapped[List['Experiment']] = relationship(back_populates='eegs', secondary="result_association")
 
-class MetricSet(Base):
-    __tablename__ = "metricset"
+class Experiment(Base):
+    __tablename__ = "experiment"
 
-    id: Mapped[str] = mapped_column(primary_key=True)
-    eeg_id = mapped_column(ForeignKey("eeg.id"), nullable=False)
+    id = mapped_column(String, primary_key=True, default=str(uuid.uuid4().hex))
     last_altered: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
-    name: Mapped[str] = mapped_column(String, nullable=False)
-    result_path: Mapped[str]
+    metric_set_name = mapped_column(String, nullable=False)  # Name of the metric set (e.g., 'entropy')
+    run_name = mapped_column(String, nullable=False)  # Name of the metric set (e.g., 'entropy')
     description: Mapped[Optional[str]]
-    signal_len: Mapped[Optional[int]]
+
     fs: Mapped[Optional[int]]
+    start: Mapped[Optional[int]]
+    stop: Mapped[Optional[int]]
     window_len: Mapped[Optional[int]]
     window_overlap: Mapped[Optional[int]]
     lower_cutoff: Mapped[Optional[float]]
     upper_cutoff: Mapped[Optional[float]]
     montage: Mapped[Optional[str]]
 
-    eegs: Mapped[List['EEG']] = relationship(back_populates='metric_sets')
-    metrics: Mapped[List['Metric']] = relationship(back_populates='metric_set')
+    # eegs: Mapped[List['EEG']] = relationship(back_populates='experiments', secondary="association_table")
+    eegs: Mapped[List['EEG']] = relationship(back_populates='experiments', secondary="result_association")
+    # Metric data will be stored in dynamically created tables
 
-class Metric(Base):
-    __tablename__ = "metric"
 
-    id: Mapped[str] = mapped_column(primary_key=True)
-    metric_set_id = mapped_column(ForeignKey("metricset.id"), nullable=False)
-    last_altered: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
-    name: Mapped[str] = mapped_column(String, nullable=False)  # Name of the metric (e.g., 'entropy_permutation')
-    description: Mapped[Optional[str]]
+class ResultAssociation(Base):
+    __tablename__ = "result_association"
+    experiment_id = mapped_column(ForeignKey("experiment.id"), primary_key=True)
+    eeg_id = mapped_column(ForeignKey("eeg.id"), primary_key=True)
+    result_path: Mapped[Optional[str]]
 
-    metric_set: Mapped[MetricSet] = relationship(back_populates='metrics')
-    # Relationship to metric data will be handled dynamically
 
-# functions to deal with the data objects
-def add_result_data_table(engine, metric_id: str, channel_names: list):
-    """
-    Create a table to store metric data for a specific metric.
-
-    Parameters:
-    - engine: SQLAlchemy engine
-    - metric_id: ID of the metric this data belongs to
-    - channel_names: List of channel names to create columns for
-    """
-    # Create a unique table name based on the metric ID
-    tablename = f"metric_data_{metric_id.replace('-', '_')}"
-
-    # Define the basic MetricData class with essential columns including window/epoch info
-    class MetricData(Base):
-        __tablename__ = tablename
-
-        id: Mapped[str] = mapped_column(primary_key=True)
-        metric_id = mapped_column(ForeignKey("metric.id"), nullable=False)
-        start_time: Mapped[float] = mapped_column(nullable=False)  # Start time of the window in seconds
-        duration: Mapped[float] = mapped_column(nullable=False)  # Duration of the window in seconds
-        label: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Label for the window (e.g., annotation name)
-        last_altered: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
-
-    # Create the table with the basic columns
-    Base.metadata.create_all(bind=engine)
-
-    # Prepare safe column names for channels
-    safe_channel_names = []
-    for channel_name in channel_names:
-        # Create a safe column name (replace special characters)
-        safe_name = channel_name.replace('-', '_').replace(' ', '_')
-        safe_channel_names.append(safe_name)
-
-    # Add channel columns using the existing function
-    if safe_channel_names:
-        add_multiple_columns(engine, tablename, safe_channel_names, 'FLOAT')
-
-    return tablename
-
+# functions to modify tables in the database
 def remove_table(engine, table_name: str, del_from_metadata = True):
     try:
         # Execute the DROP TABLE command
@@ -137,25 +96,26 @@ def add_column(engine, table_name:str , column_name:str, column_type:str):
     except SQLAlchemyError as e:
         print(f"Error: {e}")
 
-def add_multiple_columns(engine, table_name: str, column_names: list[str], column_type: str=None):
+def add_multiple_columns(engine, table_name: str, column_names: List[str], column_types: Union[str, List[str]]):
     """
     Add multiple columns to an existing table.
 
 
     :param engine: SQLAlchemy engine connected to the database.
     :param table_name: Name of the table to which columns will be added.
-    :param column_names: List of tuples, where each tuple contains the column name and column type.
-    :param column_type: sql type to apply to the added columns (should be the type of the data inserted)
+    :param column_names: A list of column names (list of strings).
+    :param column_types: sql type to apply to the added columns, either a single type (string) or a list of types (list of strings).
     """
     try:
+        # Convert single string to list if necessary
+        if isinstance(column_types, str):
+            column_types = [column_types] * len(column_names)
+
         with Session(engine) as session:
-            for column_name in column_names:
+            for column_name, type in zip(column_names, column_types):
                 # Compile the column type for the specific database dialect
                 # Execute the ALTER TABLE command
-                if type:
-                    stmt = text(f'ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}')
-                else:
-                    stmt = text(f'ALTER TABLE {table_name} ADD COLUMN {column_name}')
+                stmt = text(f'ALTER TABLE {table_name} ADD COLUMN {column_name} {type}')
                 session.execute(stmt)
                 print(f"Column {column_name} added successfully.")
 
@@ -174,7 +134,8 @@ def remove_column(engine, table_name, column_name):
     except SQLAlchemyError as e:
         print(f"Error: {e}")
 
-def find_entries(engine, table_class, **kwargs):
+# function to retrieve data from the databse
+def find_entries(session, table_class, **kwargs):
     """
     Check if an entry exists in the table based on given parameters.
 
@@ -184,89 +145,12 @@ def find_entries(engine, table_class, **kwargs):
     :return: True if the entry exists, False otherwise.
     """
     try:
-        with Session(engine) as session:
-            query = select(table_class).filter_by(**kwargs)
-            result = session.scalars(query).all()
-            return result
+        query = select(table_class).filter_by(**kwargs)
+        result = session.scalars(query).all()
+        return result
     except SQLAlchemyError as e:
         print(f"Error: {e}")
         return []
-
-def initialize_tables(path=None, path_is_relative=True):
-    if path:
-        if path_is_relative:
-            engine = create_engine(f"sqlite+pysqlite:///{path}")
-        else:
-            engine = create_engine(f"sqlite+pysqlite:////{path}")
-    else:
-        engine = create_engine("sqlite+pysqlite://:memory:")
-    Base.metadata.create_all(bind=engine)
-    return engine
-
-def adding_metric_data(engine, metric_id: str, channel_data: dict, start_time: float, duration: float, label: str = None):
-    """
-    Add metric data for a specific metric and channels.
-
-    Parameters:
-    - engine: SQLAlchemy engine
-    - metric_id: ID of the metric this data belongs to
-    - channel_data: Dictionary mapping channel names to their metric values
-    - start_time: Start time of the window in seconds
-    - duration: Duration of the window in seconds
-    - label: Label for the window (e.g., annotation name)
-    """
-    try:
-        # Create a unique table name based on the metric ID
-        tablename = f"metric_data_{metric_id.replace('-', '_')}"
-
-        # Check if the table exists, if not create it
-        with engine.connect() as conn:
-            table_exists = conn.execute(text(
-                f"SELECT name FROM sqlite_master WHERE type='table' AND name='{tablename}'"
-            )).scalar() is not None
-
-            if not table_exists:
-                # Create the table with the appropriate columns
-                channel_names = list(channel_data.keys())
-                add_result_data_table(engine, metric_id, channel_names)
-            else:
-                # Check if all required columns exist, add any missing ones
-                existing_columns = [row[1] for row in conn.execute(text(f"PRAGMA table_info({tablename})")).fetchall()]
-                missing_columns = []
-
-                for channel in channel_data.keys():
-                    safe_name = channel.replace('-', '_').replace(' ', '_')
-                    if safe_name not in existing_columns:
-                        missing_columns.append(safe_name)
-
-                # Add any missing columns
-                if missing_columns:
-                    add_multiple_columns(engine, tablename, missing_columns, 'FLOAT')
-
-        # Prepare data for insertion
-        data = {
-            'id': str(uuid.uuid4().hex),
-            'metric_id': metric_id,
-            'start_time': start_time,
-            'duration': duration,
-            'label': label,
-            'last_altered': datetime.now()
-        }
-
-        # Add channel data
-        for channel, value in channel_data.items():
-            safe_name = channel.replace('-', '_').replace(' ', '_')
-            data[safe_name] = value
-
-        # Convert to DataFrame and insert
-        df = pd.DataFrame([data])
-        df.to_sql(tablename, con=engine, if_exists='append', index=False)
-
-        print(f"Data inserted into table {tablename} successfully.")
-        return True
-    except SQLAlchemyError as e:
-        print(f"Error adding metric data: {e}")
-        return False
 
 def get_column_value_pairs(orm_object):
     """
@@ -279,122 +163,251 @@ def get_column_value_pairs(orm_object):
     column_value_pairs = {column.name: getattr(orm_object, column.name) for column in table_class.__table__.columns}
     return column_value_pairs
 
+# function to add data to the database
+def add_metric_data_table(con, experiment_id: str, eeg_id: str, df: pd.DataFrame):
+    """
+    Add metric data to the database for a specific experiment and EEG.
+    Creates a table named 'data_experiment_{experiment_id}_eeg_{eeg_id}'.
 
-def test_dbcreation(db_path:str =None):
-    engine = initialize_tables(db_path)
-
-    # Create a test metric ID
-    test_metric_id = str(uuid.uuid4().hex)
-
-    # Test creating a metric data table with channel names
-    test_channel_names = ['Fp1', 'Fp2', 'F3', 'F4']
-    tablename = add_result_data_table(engine, test_metric_id, test_channel_names)
-    print(f"Created test table: {tablename}")
-
-    # Test adding an additional column
-    add_column(engine, tablename, 'test_column', 'INTEGER')
-
-    # Test removing a column
-    remove_column(engine, tablename, 'test_column')
-
-    # Test adding more columns
-    add_multiple_columns(engine, tablename, ['additional1', 'additional2'], 'INTEGER')
-
-    # List all columns in the table to verify
+    Parameters:
+    - engine: SQLAlchemy engine or connection
+    - experiment_id: ID of the experiment
+    - eeg_id: ID of the EEG
+    - df: DataFrame containing channel data
+    """
     try:
-        with engine.connect() as conn:
-            result = conn.execute(text(f"PRAGMA table_info({tablename})"))
-            columns = result.fetchall()
-            print(f"Columns in {tablename}:")
-            for col in columns:
-                print(f"  {col[1]} ({col[2]})")
-    except SQLAlchemyError as e:
-        print(f"Error listing columns: {e}")
+        # Create table name
+        table_name = f"data_experiment_{experiment_id}_eeg_{eeg_id}"
 
-    # Test removing the table
-    # TODO: doesnt seem to work correctly yet
-    # Here the table does get removed but for some reason it seems to be readded later, have to investigate
-    remove_table(engine, tablename)
+        # Add experiment_id and eeg_id as columns to the DataFrame
+        df_with_ids = df.copy()
+        df_with_ids['experiment_id'] = experiment_id
+        df_with_ids['eeg_id'] = eeg_id
 
+        # Reorder columns to have IDs first
+        cols = ['experiment_id', 'eeg_id'] + [col for col in df_with_ids.columns if
+                                              col not in ['experiment_id', 'eeg_id']]
+        df_with_ids = df_with_ids[cols]
+
+        # Add data to SQL database
+        df_with_ids.to_sql(
+            name=table_name,
+            con=con,
+            if_exists='replace',  # 'replace' will drop and recreate the table if it exists
+            index=True,  # Include the index as a column
+            index_label='id'  # Name the index column 'id'
+        )
+
+        print(f"Successfully created and populated table: {table_name}")
+        return table_name
+
+    except Exception as e:
+        print(f"Error creating metric data table: {e}")
+        return None
+
+def add_or_update_eeg_entry(session, dataset_id, filepath, filename, file_extension):
+    """
+    Initialize or retrieve an EEG entry in the database.
+
+    Parameters:
+    - sqlpath: Path to the SQLite database
+    - dataset_id: ID of the dataset this EEG belongs to
+    - filepath: Path to the EEG file
+    - filename: Name of the EEG file (without extension)
+    - file_extension: Extension of the EEG file
+
+    Returns:
+    - eeg_id: The id of the EEG object that was created or retrieved
+    """
+    # Check if the EEG already exists in the database
+    matching_eegs = find_entries(session, EEG,
+                                dataset_id=dataset_id,
+                                filename=filename,
+                                filepath=filepath,
+                                filetype=file_extension)
+    if len(matching_eegs) == 0:
+        eeg = EEG(id=str(uuid.uuid4().hex),
+                 filename=filename,
+                 dataset_id=dataset_id,
+                 filepath=filepath,
+                 filetype=file_extension)
+        session.add(eeg)
+        print(f"Created new EEG entry: {filename}")
+    elif len(matching_eegs) == 1:
+        print(f"Found matching EEG in the dataset: {filename}")
+        eeg = matching_eegs[0]
+    else:
+        print(f"Multiple EEGs in the dataset that match {filename}, please manually check")
+        return None
+    session.commit()
+    return eeg
+
+def add_or_update_experiment(session, metric_set_name, run_name, fs=None,
+                        start=None, stop=None, lower_cutoff=None, upper_cutoff=None, window_len=None, window_overlap=None, montage=None):
+    """
+    Initialize or retrieve a MetricSet entry in the database.
+
+    Parameters:
+    - sqlpath: Path to the SQLite database
+    - eeg_id: ID of the EEG this metric set belongs to
+    - metric_set_name: Name of the metric set
+    - signal_len: Length of the signal in samples
+    - fs: Sampling frequency
+    - lfreq: Lower cutoff frequency for filtering
+    - hfreq: Upper cutoff frequency for filtering
+    - ep_dur: Duration of each epoch in seconds
+    - ep_overlap: Overlap between epochs in seconds
+    - montage: Montage used for the EEG
+
+    Returns:
+    - MetricSet: The MetricSet object that was created or retrieved
+    """
+    # Check if metric set already exists for this EEG
+    matching_experiments = find_entries(
+        session,
+        Experiment,
+        metric_set_name=metric_set_name,
+        run_name=run_name,
+    )
+
+    if len(matching_experiments) == 0:
+        experiment = Experiment(
+            metric_set_name=metric_set_name,
+            run_name=run_name,
+            fs=fs,
+            start=start,
+            stop=stop,
+            window_len=window_len,
+            window_overlap=window_overlap,
+            lower_cutoff=lower_cutoff,
+            upper_cutoff=upper_cutoff,
+            montage=montage
+        )
+        session.add(experiment)
+        session.commit()
+        print(f"Created new metric set: {metric_set_name}")
+        return experiment
+    elif len(matching_experiments) == 1:
+        print(f"Found existing metric set: {metric_set_name}")
+        return matching_experiments[0]
+    else:
+        raise ValueError(f"Multiple metric sets found for {metric_set_name}")
+
+def add_or_update_dataset(session, dataset_name, dataset_path, dataset_description):
+    """
+    Add or update a dataset in the database.
+
+    Parameters:
+    - sqlpath: Path to the SQLite database
+    - dataset_name: Name of the dataset
+    - dataset_path: Path to the dataset
+    - dataset_description: Description of the dataset
+
+    Returns:
+    - DataSet: The dataset object that was created or retrieved
+    """
+    # Add a dataset to the sqlite database
+    # Check if the dataset already exists in our database
+    matching_datasets = find_entries(session, DataSet, name=dataset_name, path=dataset_path)
+    if len(matching_datasets) == 0:
+        dataset = DataSet(id=str(uuid.uuid4().hex), name=dataset_name, path=dataset_path, description=dataset_description)
+        session.add(dataset)
+        print(f"Created new dataset: {dataset_name}")
+    elif len(matching_datasets) == 1:
+        print(f"Found matching dataset in database, updating description if necessary")
+        dataset = matching_datasets[0]
+        dataset.description = dataset_description
+    else:
+        print('Multiple datasets in the database that match name and path, please manually check')
+        return None
+    session.commit()
+    return dataset
+
+def add_result_path(session, experiment_id, eeg_id, result_path):
+    matching_results = find_entries(session, ResultAssociation, experiment_id=experiment_id, eeg_id=eeg_id)
+    if len(matching_results) == 0:
+        print('No result found for experiment and eeg, please ensure experiment and eeg are in the database')
+        return None
+    elif len(matching_results) == 1:
+        matching_results[0].result_path = result_path
+        session.commit()
+        return matching_results[0]
+    else:
+        print('Multiple results in the database that match experiment and eeg, please manually check')
+        return None
+
+def initialize_tables(path=None, path_is_relative=True):
+    if path:
+        if path_is_relative:
+            engine = create_engine(f"sqlite+pysqlite:///{path}")
+        else:
+            engine = create_engine(f"sqlite+pysqlite:////{path}")
+    else:
+        engine = create_engine("sqlite+pysqlite://:memory:")
+    Base.metadata.create_all(bind=engine)
     return engine
 
-def test_adding_data(engine):
-    # Create test dataset, EEG, and metric set
-    dataset = DataSet(
-        id=str(uuid.uuid4().hex),
-        name='EEG Study Dataset',
-        path='/data/eeg_study',
-        description='Dataset for EEG study on cognitive functions'
-        # last_altered will be set automatically
-    )
+# functions to test functionality
 
-    eeg = EEG(
-        id=str(uuid.uuid4().hex),
-        filename='subject_01_session_01',
-        filetype='.edf',
-        filepath='/data/eeg_study',
-        description='EEG recording for subject 01, session 01'
-        # last_altered will be set automatically
-    )
+def test_adding_data(db_path):
+    """Test the data addition pipeline with a sample EEG dataset and metrics."""
+    # Define the metric name first (needed for metric set creation)
+    engine = initialize_tables(db_path)
 
-    metric_set_id = str(uuid.uuid4().hex)
-    metric_set = MetricSet(
-        id=metric_set_id,
-        eeg_id=eeg.id,  # Set the EEG ID explicitly
-        name='Alpha Band Power Analysis',
-        result_path='/results/alpha_power_subject_01_session_01.csv',
-        description='Analysis of alpha band power for cognitive task performance'
-        # last_altered will be set automatically
-    )
-
-    # Create a test metric
-    metric_id = str(uuid.uuid4().hex)
-    metric = Metric(
-        id=metric_id,
-        metric_set_id=metric_set.id,  # Set the metric set ID explicitly
-        name='Alpha Power',
-        description='Computed alpha power for subject 01, session 01'
-        # last_altered will be set automatically
-    )
-
-    # Set up relationships
-    dataset.eegs.append(eeg)
-    eeg.metric_sets.append(metric_set)
-    metric_set.metrics.append(metric)
-
-    # Save to database
     with Session(engine) as session:
-        session.add(dataset)
-        session.add(eeg)
-        session.add(metric_set)
-        session.add(metric)
+        # 1. Create a test dataset
+        dataset = add_or_update_dataset(
+            session,
+            dataset_name='EEG Study Dataset',
+            dataset_path='/data/eeg_study',
+            dataset_description='Dataset for EEG study on cognitive functions'
+        )
+        # 2. Create a test EEG entry
+        eeg = add_or_update_eeg_entry(
+            session,
+            dataset_id=dataset.id,
+            filepath='/data/eeg_study',
+            filename='subject_01_session_01',
+            file_extension='.edf'
+        )
+        # 3. Create a test metric set
+        result_path = '/results/alpha_power'
+        experiment = add_or_update_experiment(
+            session,
+            metric_set_name='Alpha power',
+            run_name='low_freq',
+            fs=250,          # Sample frequency
+            lower_cutoff=8,         # Alpha band lower cutoff
+            upper_cutoff=13,        # Alpha band upper cutoff
+            window_len=4,        # 4-second epochs
+            window_overlap=2     # 2-second overlap
+        )
+        if not eeg in experiment.eegs:
+            experiment.eegs.append(eeg)
+
+        add_result_path(session, experiment.id, eeg.id, result_path)
+
+        # 4. Create sample channel data as a DataFrame
+        channel_data = pd.DataFrame({
+            'Fp1': [0.75, 1],
+            'Fp2': [0.82, 2.5],
+            'F3': [0.65, 4.5],
+            'F4': [0.71, 6]
+        })
+
+        # 5. Add the channel data to the database
+        add_metric_data_table(
+            con=session.connection(),
+            experiment_id=experiment.id,
+            eeg_id=eeg.id,
+            df=channel_data
+        )
         session.commit()
-
-    # Test adding metric data
-    channel_data = {
-        'Fp1': 0.75,
-        'Fp2': 0.82,
-        'F3': 0.65,
-        'F4': 0.71
-    }
-
-    # Add the channel data to the database with window/epoch information
-    adding_metric_data(
-        engine=engine,
-        metric_id=metric_id,
-        channel_data=channel_data,
-        start_time=0.0,  # Start time of the window in seconds
-        duration=5.0,    # Duration of the window in seconds
-        label='resting'  # Label for the window
-    )
-
-    print("Test data added successfully.")
-
+        print("Test data added successfully.")
 
 if __name__ == "__main__":
     # Run the test functions
     print("Running database tests...")
     db_path = 'test.sqlite'
-    engine = test_dbcreation(db_path)
-    test_adding_data(engine)
+    test_adding_data(db_path)
     print("All tests completed successfully.")
