@@ -116,9 +116,18 @@ def add_or_update_experiment(session, experiment, run):
     )
     return experiment
 
-def populate_data_tables(session, experiment):
-    # TODO
-    pass
+def populate_data_tables(session, experiment, table_exists='append'):
+    experiment_id = experiment.id
+    table_name = None
+    for eeg in experiment.eegs:
+        eeg_id = eeg.id
+        result_path = Alchemist.get_result_path_from_ids(session, experiment_id=experiment_id, eeg_id=eeg_id)
+        if result_path:
+            data = pd.read_csv(result_path)
+            table_name = Alchemist.add_metric_data_table(session, experiment_id, eeg_id, data, table_exists)
+    session.commit()
+    return table_name
+
 
 def get_files_dataframe(bids_folder: str, infile_ending: str, outfile_ending: str, folder_extensions: str,
                         session, experiment, dataset_id) -> pd.DataFrame:
@@ -318,7 +327,7 @@ def process_experiment(config: dict, log_file: str, num_processes: int=4):
                 )
 
                 # TODO: add the computed result frames to the database by iterating over the eegs of the experiment
-                populate_data_tables(session, experiment)
+                populate_data_tables(session, experiment_object)
 
     # Print a final message indicating completion
     print(f"\n{'*' * 50}")

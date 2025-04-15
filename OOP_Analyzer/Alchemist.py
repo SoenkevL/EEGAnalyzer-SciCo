@@ -163,8 +163,23 @@ def get_column_value_pairs(orm_object):
     column_value_pairs = {column.name: getattr(orm_object, column.name) for column in table_class.__table__.columns}
     return column_value_pairs
 
+def get_result_path_from_ids(session, experiment_id, eeg_id):
+    """
+    Retrieve the result path from the ResultAssociation table based on experiment_id and eeg_id.
+
+    :param session: SQLAlchemy session object.
+    :param experiment_id: ID of the experiment.
+    :param eeg_id: ID of the EEG.
+    :return: The result path if found, None otherwise.
+    """
+    results = find_entries(session, ResultAssociation, experiment_id=experiment_id, eeg_id=eeg_id)
+    if results:
+        return results[0].result_path
+    else:
+        return None
+
 # function to add data to the database
-def add_metric_data_table(con, experiment_id: str, eeg_id: str, df: pd.DataFrame):
+def add_metric_data_table(con, experiment_id: str, eeg_id: str, df: pd.DataFrame, table_exists='append'):
     """
     Add metric data to the database for a specific experiment and EEG.
     Creates a table named 'data_experiment_{experiment_id}_eeg_{eeg_id}'.
@@ -174,28 +189,50 @@ def add_metric_data_table(con, experiment_id: str, eeg_id: str, df: pd.DataFrame
     - experiment_id: ID of the experiment
     - eeg_id: ID of the EEG
     - df: DataFrame containing channel data
+    - table_exists: Action to take if the table already exists ('append', 'replace')
     """
     try:
+        # if con is a session, get the connection
+        if isinstance(con, Session):
+            con = con.connection()
+
         # Create table name
-        table_name = f"data_experiment_{experiment_id}_eeg_{eeg_id}"
+        table_name = f"data_experiment_{experiment_id}"
 
         # Add experiment_id and eeg_id as columns to the DataFrame
         df_with_ids = df.copy()
-        df_with_ids['experiment_id'] = experiment_id
         df_with_ids['eeg_id'] = eeg_id
 
         # Reorder columns to have IDs first
-        cols = ['experiment_id', 'eeg_id'] + [col for col in df_with_ids.columns if
-                                              col not in ['experiment_id', 'eeg_id']]
-        df_with_ids = df_with_ids[cols]
+        cols = ['eeg_id'] + [col for col in df_with_ids.columns if
+                                          col not in ['experiment_id', 'eeg_id']]
+        df_new = df_with_ids[cols]
+
+        # Make sure data is appended and unique
+        if table_exists == 'append':
+            try:
+                df_old = pd.read_sql_table(table_name, con)
+                df_merged = pd.concat([df_old, df_new], ignore_index=True)
+                df_merged_unique = df_merged.drop_duplicates().reset_index(drop=True)
+                print(f"Table {table_name} exist, appending new rows to existing table")
+            except ValueError:
+                print(f"Table {table_name} does not exist, creating new table")
+                df_merged_unique = df_new
+            except Exception as e:
+                print(f"Error reading existing table: {e}")
+                return None
+        elif table_exists == 'replace':
+            df_merged_unique = df_new
+        else:
+            print(f'table_exists argument {table_exists} is not valid, must be either append or replace')
+            return None
 
         # Add data to SQL database
-        df_with_ids.to_sql(
+        df_merged_unique.to_sql(
             name=table_name,
             con=con,
             if_exists='replace',  # 'replace' will drop and recreate the table if it exists
-            index=True,  # Include the index as a column
-            index_label='id'  # Name the index column 'id'
+            index=False  # Include the index as a column
         )
 
         print(f"Successfully created and populated table: {table_name}")
