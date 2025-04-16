@@ -81,44 +81,16 @@ If no database path is provided, the script will look for the default database a
    - Click "Reset Zoom" to view the entire time range again
 7. **Update Plot**: Click the "Update Plot" button to display the selected metric for the chosen channels and aggregations.
 
-## Project Structure
+## Files
 
-### Main Files
-- `run_metrics_viewer.py`: Entry point script to run the application
-- `install_dependencies.py`: Script to install required dependencies
-
-### Package Structure
-- `metrics_viewer/`: Main package directory
-  - `__init__.py`: Package initialization and exports
-  - `app.py`: Main application class
-  - `database_handler.py`: Database interaction functionality
-  - `plot_frame.py`: Plotting and visualization components
-  - `selection_frame.py`: UI controls for selection and configuration
-  - `utils.py`: Utility functions and constants
-
-### Reference Files
+- `metrics_viewer.py`: Main application code
+- `run_metrics_viewer.py`: Simple script to run the application
 - `plotting_oneshot.py`: Example plotting application (for reference)
 
 ## Extending the Application
 
-The modular structure makes it easy to extend the application with new features:
+To add new visualization types or features:
 
-### Adding New Visualization Types
-1. Modify the `plot_frame.py` file to add new visualization methods
-2. Add new options in the `selection_frame.py` file for selecting the visualization type
-3. Update the `update_plot` method to handle the new visualization options
-
-### Adding New Data Processing Features
-1. Add new data processing methods in the `database_handler.py` file
-2. Expose the new functionality through the `SelectionFrame` class
-3. Update the plotting logic to visualize the processed data
-
-### Adding New UI Controls
-1. Add new UI elements to the `SelectionFrame` class
-2. Connect the UI elements to appropriate callback methods
-3. Update the `update_plot` method to use the new settings
-
-### Adding New Aggregation Methods
-1. Add new aggregation methods to the `utils.py` file
-2. Update the `SelectionFrame` class to include the new aggregation options
-3. Implement the calculation logic in the `MetricsPlotFrame.update_plot` method
+1. Modify the `MetricsPlotFrame` class to support additional plot types
+2. Add new controls to the `SelectionFrame` class for selecting visualization options
+3. Update the `update_plot` method to handle the new options
