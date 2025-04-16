@@ -18,7 +18,7 @@ import importlib.util
 
 def check_dependencies():
     """Check if all required dependencies are installed."""
-    required_packages = ["customtkinter", "matplotlib", "numpy", "pandas", "sqlalchemy"]
+    required_packages = ["customtkinter", "matplotlib", "numpy", "pandas", "sqlalchemy", "mne"]
     missing_packages = []
 
     for package in required_packages:

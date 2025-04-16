@@ -26,16 +26,17 @@ def main():
         "matplotlib",
         "numpy",
         "pandas",
-        "sqlalchemy"
+        "sqlalchemy",
+        "mne"
     ]
-    
+
     missing_packages = []
-    
+
     # Check which packages are missing
     for package in required_packages:
         if not check_package(package):
             missing_packages.append(package)
-    
+
     # Install missing packages
     if missing_packages:
         print(f"The following packages need to be installed: {', '.join(missing_packages)}")
