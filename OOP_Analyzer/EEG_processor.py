@@ -10,8 +10,8 @@ class EEG_processor:
     """
     A class for processing EEG (Electroencephalogram) data.
 
-    The EEG_processor class facilitates the loading, preprocessing, and exporting of EEG data 
-    for further analysis. It provides multiple utilities, such as file loading, filtering, 
+    The EEG_processor class facilitates the loading, preprocessing, and exporting of EEG data
+    for further analysis. It provides multiple utilities, such as file loading, filtering,
     changing montages, downsampling, and calculating metrics.
 
     Initialization:
@@ -34,7 +34,6 @@ class EEG_processor:
     - `compute_metrics_fif(name, relevant_annot_labels, ep_dur, ep_start, ep_stop, overlap, task_label)`: Wraps annotation-based and full-file metric calculations.
     - `compute_metrics(name, annot, outfile, lfreq, hfreq, montage, ep_dur, ep_start, ep_stop, overlap, resamp_freq)`: Combines preprocessing and metric calculations for all or specific annotations and saves results to a file.
     """
-   
 
     def __init__(self, datapath, preload: bool = True):
         self.datapath = datapath
@@ -42,15 +41,15 @@ class EEG_processor:
         self.info = self.raw.info
         self.buttler = Buttler.Buttler()
 
-
     def load_data_file(self, data_file: str, preload: bool = True):
         """
         Loads an EEG file into an mne raw instance and extracts its sampling frequency.
+
         Performs basic file type validation to ensure compatibility.
-        
+
         Inputs:
         - data_file (str): Path to the file to be loaded. Supports `.fif` and `.edf` file formats.
-    
+
         Outputs:
         - raw: mne raw instance containing the EEG data.
         - sfreq: Sampling frequency of the EEG data.
@@ -74,7 +73,8 @@ class EEG_processor:
     def load_data_of_raw_object(self):
         """
         Loads data from the raw EEG object into memory.
-        This ensures that the raw object is fully loaded 
+
+        This ensures that the raw object is fully loaded
         and ready for downstream processing.
         """
         self.raw.load_data()
@@ -82,10 +82,10 @@ class EEG_processor:
     def downsample(self, resamp_freq):
         """
         Downsamples the EEG data to the specified sampling frequency.
-    
+
         Inputs:
         - resamp_freq (int): Target resampling frequency. Must be less than the current frequency.
-    
+
         Outputs:
         - None. Modifies the raw EEG object in place.
         """
@@ -121,6 +121,7 @@ class EEG_processor:
     def ensure_electrodes_present(self, anodes, cathods, new_names):
         """
         checks if the anode and cathode for the bipolar reference are present, if not they will be dropped
+
         inputs:
         -anodes: a list of anode names which contains the name or None if the electrode is not present
         -cathodes: a list of cathode names which contains the name or None if the electrode is not present
@@ -145,8 +146,9 @@ class EEG_processor:
 
     def only_keep_10_20_channels_and_check_bipolar(self):
         """
-        Checks the EEG channels for containing a valid part, only once and no part that is marked as invalid in order to
-        only keep the correct EEG channels and marke others as bad
+        Checks the EEG channels for containing a valid part, only once and no part that is marked as invalid.
+
+        In order to only keep the correct EEG channels and marke others as bad
         returns True if two valid channel parts are in one channel
         inputs:
         -raw: raw instance from EEG
@@ -175,10 +177,10 @@ class EEG_processor:
         self.raw.info['bads'] = list(set(self.raw.info['bads']))
         return duplicate_positive
 
-
     def convert_electrode_names_to_channel_names(self, electrode_names: list[str], channel_names: list[str]):
         """
         Goes through the electrode names and converts them to channel names if the electrode name is part of the channel name
+
         inputs:
         -electrode_names: names of the electrodes from the montage
         -channel_names: names of the channels after conversion to ensure unified names in the outputs
@@ -197,6 +199,7 @@ class EEG_processor:
     def change_montage(self, montage: str):
         """
         changes the montage of a raw instance
+
         input:
         -raw: raw instance of the EEG
         -montage: name of the montage, either 'avg', 'doublebanana', 'circumferential' or a specific channel
@@ -277,10 +280,10 @@ class EEG_processor:
             print(f'The given montage is not a viable option or a channel of the raw_internal object, no montage applied')
         return raw_internal
 
-
     def extract_eeg_columns(self, eeg_dataframe):
         """
         Extracts all besides the first column from the eeg dataframe
+
         inputs:
         -dataframe with eeg data
         returns:
@@ -408,31 +411,31 @@ class EEG_processor:
 
         """
         Computes metrics for EEG data by handling files with or without annotations.
-        
-        This function acts as a wrapper around `calc_metric_from_annotations` and 
-        `calc_metric_from_whole_file`, allowing it to process EEG files with one, 
+
+        This function acts as a wrapper around `calc_metric_from_annotations` and
+        `calc_metric_from_whole_file`, allowing it to process EEG files with one,
         multiple, or no annotations.
-        
+
         Args:
         - metric_name (str): Name of the metric set to apply during computation.
-        - relevant_annot_labels (list, optional): List of annotation labels to analyze. 
+        - relevant_annot_labels (list, optional): List of annotation labels to analyze.
                                                   If `None`, the entire EEG file is used.
                                                   If `['all']`, all annotations will be used.
         - ep_dur (int, optional): Duration of each epoch in seconds.
-        - ep_start (int, optional): Start offset for epoching in seconds, 
+        - ep_start (int, optional): Start offset for epoching in seconds,
                                     relative to the EEG/annotation.
         - ep_stop (int, optional): Maximum duration of the analyzed segment in seconds.
         - overlap (int, optional): Amount of overlap between epochs in seconds. Defaults to 0.
         - task_label (str, optional): Task label to use for epoching if the whole file is analyzed.
-        
+
         Returns:
-        - pandas.DataFrame: A DataFrame containing metrics for each channel across all 
+        - pandas.DataFrame: A DataFrame containing metrics for each channel across all
                             epochs in the EEG/annotated segments.
-        
+
         Notes:
-        - If `relevant_annot_labels` is provided with `['all']`, metrics are calculated 
+        - If `relevant_annot_labels` is provided with `['all']`, metrics are calculated
           for all annotations in the file.
-        - If `relevant_annot_labels` contains specific annotations, only those are used. 
+        - If `relevant_annot_labels` contains specific annotations, only those are used.
           Otherwise, metric computation defaults to the entire EEG file.
         """
         # Check if annotation labels are provided
@@ -459,15 +462,16 @@ class EEG_processor:
     ########################################################################################################################
     ######################################## high level functions ##########################################################
     ########################################################################################################################
-    
+
     def compute_metrics(self, metric_set_name: str, annot: list, outfile: str, lfreq: int, hfreq: int,
                         montage: str, ep_start: int = None, ep_stop: int = None, ep_dur: int = None, overlap : int = 0,
                         resamp_freq=None, repeat_measurement: bool = False, include_chaos_pipe=True, multiprocess: bool = False) -> str:
         """
-        Compute metrics for EEG processing using filtering, re-montaging, resampling, 
-        and metric calculations on individual EEG channels. This is the primary function 
-        for processing and analyzing EEG data.
-        
+        Compute metrics for EEG processing
+
+        using filtering, re-montaging, resampling, and metric calculations on individual EEG channels
+        This is the primary function for processing and analyzing EEG data.
+
         Args:
         - metric_set_name (str): Name of the metric set to calculate.
         - annot (list): List of annotations to use. Should match the names in the infile annotations.
@@ -478,69 +482,74 @@ class EEG_processor:
                        The filter allows frequencies between lfreq and hfreq to pass.
         - montage (str): Name of the montage to apply. Valid options are:
                          'avg', specific reference channel, 'doublebanana', 'circumferential'.
-        - ep_start (int, optional): Start offset for epoching in seconds, relative to the beginning 
+        - ep_start (int, optional): Start offset for epoching in seconds, relative to the beginning
                                      of the file or annotation. Defaults to 0.
-        - ep_stop (int, optional): Stop offset for epoching in seconds, relative to the beginning 
+        - ep_stop (int, optional): Stop offset for epoching in seconds, relative to the beginning
                                     of the file or annotation. Defaults to the length of the file or annotation.
-        - ep_dur (int, optional): Duration of individual epochs in seconds. Defaults to the length 
+        - ep_dur (int, optional): Duration of individual epochs in seconds. Defaults to the length
                                    of the file or annotation.
         - overlap (int, optional): Amount of overlap between epochs in seconds. Defaults to 0.
-        - resamp_freq (int, optional): Frequency to which the data will be downsampled. Defaults to None 
+        - resamp_freq (int, optional): Frequency to which the data will be downsampled. Defaults to None
                                        (no downsampling).
-        - repeat_measurement (bool, optional): If True and the metrics CSV file already exists, the 
-                                               calculation is redone, and the existing file is overwritten. 
+        - repeat_measurement (bool, optional): If True and the metrics CSV file already exists, the
+                                               calculation is redone, and the existing file is overwritten.
                                                If False, existing metrics are reused, and computation is skipped.
-        - include_chaos_pipe (bool, optional): If True, includes the pipeline by Toker. Requires a valid 
+        - include_chaos_pipe (bool, optional): If True, includes the pipeline by Toker. Requires a valid
                                                MATLAB version with the pipeline accessible in its path.
         - multiprocess (bool, optional): If True, enables multiprocessing for metric computations. Defaults to False.
-        
+
         Returns:
         - str: A message indicating the outcome of the processing. Possible messages:
                * 'finished and saved successfully': When computation and saving succeed.
                * 'no metrics could be calculated': When no metrics are computed.
                * Other messages depending on the checks performed in the function.
-        
+
         Outputs:
         - Saves a CSV file with computed metrics at the specified `outfile` location.
         """
-        # check the name of the outfile
-        outfile_check, outfile_check_message = self.buttler.check_outfile_name(outfile,
-                                                                               file_exists_ok=repeat_measurement)
-        if not outfile_check:
-            return outfile_check_message
 
-        # only keeps channels which correspond to the typical 10-20 system names
-        bipolar = self.only_keep_10_20_channels_and_check_bipolar()
-        if bipolar:
-            print(f'Most likely already has a bipolar montage \n'
-                  f'Channel names: \n {self.raw.ch_names}')
+        try:
+            # check the name of the outfile
+            outfile_check, outfile_check_message = self.buttler.check_outfile_name(outfile,
+                                                                                   file_exists_ok=repeat_measurement)
+            if not outfile_check:
+                return outfile_check_message
 
-        # filter
-        self.apply_filter(lfreq, hfreq)
+            # only keeps channels which correspond to the typical 10-20 system names
+            bipolar = self.only_keep_10_20_channels_and_check_bipolar()
+            if bipolar:
+                print(f'Most likely already has a bipolar montage \n'
+                      f'Channel names: \n {self.raw.ch_names}')
 
-        # downsample
-        self.downsample(resamp_freq)
+            # filter
+            self.apply_filter(lfreq, hfreq)
 
-        # montage (also excludes bads and non-EEG channels even if no remontaging is done)
-        raw = self.change_montage(montage)
-        if not raw:
-            return 'could not set montage, maybe EEG is faulty, skipping EEG'
-        else:
-            self.raw = raw
+            # downsample
+            self.downsample(resamp_freq)
 
-        # plots for debugging
-        # raw.plot(block=True)
+            # montage (also excludes bads and non-EEG channels even if no remontaging is done)
+            raw = self.change_montage(montage)
+            if not raw:
+                return 'could not set montage, maybe EEG is faulty, skipping EEG'
+            else:
+                self.raw = raw
 
-        # extract the task label in case only epoching is used to use as annot
-        task_label = self.buttler.find_task_from_filename(self.datapath)
+            # plots for debugging
+            # raw.plot(block=True)
 
-        # calculate the metrics
-        full_results_frame = self.compute_metrics_fif(metric_set_name, annot, ep_dur, ep_start, ep_stop, overlap,
-                                                      task_label=task_label)
+            # extract the task label in case only epoching is used to use as annot
+            task_label = self.buttler.find_task_from_filename(self.datapath)
 
-        # save dataframe to csv
-        if not full_results_frame.empty:
-            full_results_frame.to_csv(outfile)
-            return 'finished and saved successfully'
-        else:
-            return 'no metrics could be calculated'
+            # calculate the metrics
+            full_results_frame = self.compute_metrics_fif(
+                metric_set_name, annot, ep_dur, ep_start, ep_stop, overlap
+            )
+
+            # save dataframe to csv
+            if not full_results_frame.empty:
+                full_results_frame.to_csv(outfile)
+                return 'finished and saved successfully'
+            else:
+                return 'no metrics could be calculated'
+        except Exception as e:
+            return f'Error during metric computation: {str(e)}'

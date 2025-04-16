@@ -1,11 +1,15 @@
 import argparse
 import os
 import sys
+import uuid
+from fileinput import filename
+
 import yaml
 import pandas as pd
 from datetime import datetime
 from EEG_processor import EEG_processor
 from CSV_processor import CSVProcessor
+import Alchemist
 from multiprocesspandas import applyparallel
 
 
@@ -57,10 +61,78 @@ def load_yaml_file(yaml_filepath: str) -> dict:
         data = yaml.safe_load(stream)
     return data
 
-
-def get_files_dataframe(bids_folder: str, infile_ending: str, outfile_ending: str, folder_extensions: str) -> pd.DataFrame:
+def add_or_update_dataset(session, config):
     """
-    Creates a DataFrame containing valid file paths, their corresponding output paths, 
+    Add or update a dataset in the database.
+
+    Args:
+        config (dict): Configuration dictionary containing dataset information.
+
+    Returns:
+        datset_id: The id of the DataSet object that was added or updated.
+    """
+    dataset = Alchemist.add_or_update_dataset(
+        session,
+        dataset_name=config['name'],
+        dataset_path=config['bids_folder'],
+        dataset_description=config['description']
+    )
+    return dataset.id
+
+def add_or_update_eeg(session, dataset_id, filepath):
+    """
+    Add or update an eeg in the database.
+
+    Args:
+
+    Returns:
+        eeg_id: The id of the eeg object that was added or updated.
+    """
+    full_path = os.path.normpath(filepath)
+    basename = os.path.basename(full_path)
+    file_name, ext = os.path.splitext(basename)
+    eeg = Alchemist.add_or_update_eeg_entry(
+            session,
+            dataset_id=dataset_id,
+            filepath=full_path,
+            filename=file_name,
+            file_extension=ext,
+        )
+    return eeg
+
+def add_or_update_experiment(session, experiment, run):
+    experiment = Alchemist.add_or_update_experiment(
+            session,
+            metric_set_name=experiment['name'],
+            run_name=run['name'],
+            fs=run['sfreq'],
+            start=experiment['epoching']['start_time'],
+            stop=experiment['epoching']['stop_time'],
+            window_len=experiment['epoching']['duration'],
+            window_overlap=experiment['epoching']['overlap'],
+            lower_cutoff=run['filter']['l_freq'],
+            upper_cutoff=run['filter']['h_freq'],
+            montage=run['montage']
+    )
+    return experiment
+
+def populate_data_tables(session, experiment, table_exists='append'):
+    experiment_id = experiment.id
+    table_name = None
+    for eeg in experiment.eegs:
+        eeg_id = eeg.id
+        result_path = Alchemist.get_result_path_from_ids(session, experiment_id=experiment_id, eeg_id=eeg_id)
+        if result_path:
+            data = pd.read_csv(result_path)
+            table_name = Alchemist.add_metric_data_table(session, experiment_id, eeg_id, data, table_exists)
+    session.commit()
+    return table_name
+
+
+def get_files_dataframe(bids_folder: str, infile_ending: str, outfile_ending: str, folder_extensions: str,
+                        session, experiment, dataset_id) -> pd.DataFrame:
+    """
+    Creates a DataFrame containing valid file paths, their corresponding output paths,
     and the processed status (whether the output file already exists).
 
     Args:
@@ -94,11 +166,18 @@ def get_files_dataframe(bids_folder: str, infile_ending: str, outfile_ending: st
                 # Check if the output file exists
                 already_processed = os.path.exists(outpath)
 
+                # Add eeg to experiment in database
+                eeg = add_or_update_eeg(session, dataset_id, full_path)
+                if not eeg in experiment.eegs:
+                    experiment.eegs.append(eeg)
+                Alchemist.add_result_path(session, experiment.id, eeg.id, outpath)
                 # Append file data to list
                 valid_files.append({'file_path': full_path, 'outpath': outpath, 'already_processed': already_processed})
+                 # Add file to database
 
     # Create the DataFrame from the collected information
     df = pd.DataFrame(valid_files, columns=['file_path', 'outpath', 'already_processed'])
+
     return df
 
 
@@ -167,7 +246,6 @@ def process_file(row, metric_set_name, annotations, lfreq, hfreq, montage, ep_st
         print(f"Skipping already processed file: {file_path}")
 
 
-
 def process_experiment(config: dict, log_file: str, num_processes: int=4):
     """
     Processes experiments and their respective runs as specified in the YAML configuration.
@@ -181,62 +259,81 @@ def process_experiment(config: dict, log_file: str, num_processes: int=4):
         log_stream = open(log_file, 'w')
         sys.stdout = log_stream  # Redirect print statements to log file
     print(f'{"*" * 102}\n{"*" * 40} {datetime.today().strftime("%Y-%m-%d %H:%M:%S")} {"*" * 40}\n{"*" * 102}\n')
-
-    # Iterate through experiments defined in the configuration
+        # Iterate through experiments defined in the configuration
     for experiment in config['experiments']:
-        # Extract experiment-level configuration
-        exp_name = experiment['name']
-        input_file_ending = experiment['input_file_ending']
-        bids_folder = experiment['bids_folder']
-        annotations = experiment['annotations_of_interest']
-        outfile_ending = experiment['outfile_ending']
-        recompute = experiment['recompute']
-        epoching = experiment['epoching']
-        ep_start, ep_dur, ep_stop, ep_overlap = (
-            epoching['start_time'],
-            epoching['duration'],
-            epoching['stop_time'],
-            epoching['overlap'],
-        )
-        metric_set_name = experiment['metric_set_name']
-
-        # Iterate through runs for each experiment
-        for run in experiment['runs']:
-            # Extract run-level configuration
-            run_name = run['name']
-            lfreq = run['filter']['l_freq']
-            hfreq = run['filter']['h_freq']
-            sfreq = run['sfreq']
-            montage = run['montage']
-            folder_extensions = run['metrics_prefix']
-
-            print(
-                f'{"#" * 20} Running experiment "{exp_name}" and run "{run_name}" on folder "{bids_folder}" {"#" * 20}\n')
-
-            # Create DataFrame of valid files to process
-            files_df = get_files_dataframe(bids_folder, input_file_ending, outfile_ending, folder_extensions)
-            print(f"Generated DataFrame with {len(files_df)} files:")
-            # print(files_df.head())
-
-            n_chunks = max(len(files_df) // num_processes, 1)
-            num_processes = min(n_chunks, num_processes)
-            files_df.apply_parallel(
-                process_file,
-                metric_set_name=metric_set_name,
-                annotations=annotations,
-                lfreq=lfreq,
-                hfreq=hfreq,
-                montage=montage,
-                ep_start=ep_start,
-                ep_stop=ep_stop,
-                ep_dur=ep_dur,
-                ep_overlap=ep_overlap,
-                sfreq=sfreq,
-                recompute=recompute,
-                axis=0,
-                num_processes=num_processes,
-                n_chunks=n_chunks,
+        # make sure we can access our sqlite base
+        engine = Alchemist.initialize_tables(experiment['sqlite_path'])
+        with Alchemist.Session(engine) as session:
+            # Extract experiment-level configuration
+            exp_name = experiment['name']
+            input_file_ending = experiment['input_file_ending']
+            bids_folder = experiment['bids_folder']
+            annotations = experiment['annotations_of_interest']
+            outfile_ending = experiment['outfile_ending']
+            recompute = experiment['recompute']
+            epoching = experiment['epoching']
+            ep_start, ep_dur, ep_stop, ep_overlap = (
+                epoching['start_time'],
+                epoching['duration'],
+                epoching['stop_time'],
+                epoching['overlap'],
             )
+            metric_set_name = experiment['metric_set_name']
+
+            # add or update dataset in sqlite database
+            dataset_id = add_or_update_dataset(session, experiment)
+            print(f"Using dataset ID: {dataset_id}")
+
+            # Iterate through runs for each experiment
+            for run in experiment['runs']:
+                # Extract run-level configuration
+                run_name = run['name']
+                lfreq = run['filter']['l_freq']
+                hfreq = run['filter']['h_freq']
+                sfreq = run['sfreq']
+                montage = run['montage']
+                folder_extensions = run['metrics_prefix']
+
+                print(
+                    f'{"#" * 20} Running experiment "{exp_name}" and run "{run_name}" on folder "{bids_folder}" {"#" * 20}\n')
+
+                experiment_object = add_or_update_experiment(session, experiment, run)
+                # create first experiment, then files df and add experiment to each eeg
+                # Create DataFrame of valid files to process (also adds the eegs to the database)
+                files_df = get_files_dataframe(bids_folder, input_file_ending, outfile_ending, folder_extensions,
+                                               session, experiment_object, dataset_id)
+                print(f"Generated DataFrame with {len(files_df)} files:")
+                # print(files_df.head())
+
+
+                n_chunks = max(len(files_df) // num_processes, 1)
+                num_processes = min(n_chunks, num_processes)
+                files_df.apply_parallel(
+                    process_file,
+                    metric_set_name=metric_set_name,
+                    annotations=annotations,
+                    lfreq=lfreq,
+                    hfreq=hfreq,
+                    montage=montage,
+                    ep_start=ep_start,
+                    ep_stop=ep_stop,
+                    ep_dur=ep_dur,
+                    ep_overlap=ep_overlap,
+                    sfreq=sfreq,
+                    recompute=recompute,
+                    axis=0,
+                    num_processes=num_processes,
+                    n_chunks=n_chunks,
+                )
+
+                # TODO: add the computed result frames to the database by iterating over the eegs of the experiment
+                populate_data_tables(session, experiment_object)
+
+    # Print a final message indicating completion
+    print(f"\n{'*' * 50}")
+    print(f"All processing complete. Results stored in database: {experiment['sqlite_path']}")
+    print(f"{'*' * 50}\n")
+
     if log_file:
         log_stream.close()
 
