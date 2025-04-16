@@ -42,5 +42,6 @@ class App(ctk.CTk):
         self.plot_frame.grid(row=0, column=1, padx=(0, 10), pady=10, sticky="nsew")
         
         # Create selection frame with narrower fixed width
-        self.selection_frame = SelectionFrame(self, self.db_handler, self.plot_frame, width=150)
+        self.selection_frame = SelectionFrame(self, self.db_handler, self.plot_frame, width=250)
+        self.selection_frame.grid(row=0, column=0, padx=5, pady=10, sticky="nsew")
         self.selection_frame.grid_propagate(False)  # Prevent the frame from resizing based on content
