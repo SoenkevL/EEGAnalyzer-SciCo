@@ -39,7 +39,52 @@ include mne for eeg processing, pandas to handle dataframes, neurokit2 and edge-
 ## Requirements
 - Python 3.8+
 
-## Installation with example
+## Installation
+
+### As a Python Package
+
+#### Using pip
+
+```bash
+pip install eeganalyzer
+```
+
+#### From source
+
+```bash
+git clone https://github.com/SoenkevL/EEGAnalyzer.git
+cd EEGAnalyzer
+pip install -e .
+```
+
+### Using the Command-line Interface
+
+Once installed as a package, you can use the command-line interface:
+
+```bash
+eeganalyzer --yaml_config <path_to_config_file> --logfile_path <path_to_log_file>
+```
+
+Arguments:
+- `--yaml_config`: Path to the YAML configuration file (required)
+- `--logfile_path`: Path to the log file (optional)
+
+### Using the Python API
+
+You can also use the package as a Python library:
+
+```python
+from eeganalyzer.core.processor import process_experiment
+from eeganalyzer.utils.config import load_yaml_file
+
+# Load configuration
+config = load_yaml_file('config.yaml')
+
+# Process experiments
+process_experiment(config, 'results/analysis.log')
+```
+
+## Installation with example (Development)
 
 ### 1. Clone the repository:
 
@@ -141,4 +186,3 @@ explore Data, its sampling parameters and different metrics to try understanding
 Data, and especially the way it is displayed, is very much subject to the experimenter and analyst.
 Therefore, I want to remind anyone that you should not make your data fit your thesis but test your
 thesis with your data by closely thinking about what you analyze and why. 
-
