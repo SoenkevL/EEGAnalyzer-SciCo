@@ -1,7 +1,7 @@
 # EEGAnalyzer
 
 A comprehensive tool for analyzing EEG data with focus on customizable metric analysis. Originally designed to analyze the
-chaotic dynamics, complexity assessment, fractal properties, and entropy of EEG signals.  
+chaotic dynamics, complexity assessment, fractal-properties, and entropy of EEG signals.  
 The idea of this project is to bring together some of the most powerful python libraries for biomedical timeseries analysis. These
 include mne for eeg processing, pandas to handle dataframes, neurokit2 and edge-of-py to provide the metrics for the analysis.
 
@@ -43,12 +43,6 @@ include mne for eeg processing, pandas to handle dataframes, neurokit2 and edge-
 
 ### As a Python Package
 
-#### Using pip
-
-```bash
-pip install eeganalyzer
-```
-
 #### From source
 
 ```bash
@@ -61,6 +55,7 @@ pip install -e .
 
 Once installed as a package, you can use the command-line interface:
 
+To analyze eegs:
 ```bash
 eeganalyzer --yaml_config <path_to_config_file> --logfile_path <path_to_log_file>
 ```
@@ -69,6 +64,12 @@ Arguments:
 - `--yaml_config`: Path to the YAML configuration file (required)
 - `--logfile_path`: Path to the log file (optional)
 
+and to visualize the metrics and compare them to the original eeg files:
+```bash
+eegviwer --sql_path <path_to_sqlite_database>
+```
+Arguments:
+- `--sql_path`: Path to the SQLite database (required) 
 ### Using the Python API
 
 You can also use the package as a Python library:
