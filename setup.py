@@ -12,7 +12,7 @@ setup(
     version="0.1.0",
     author="SoenkevL",
     author_email="",
-    description="A comprehensive tool for analyzing EEG data with focus on customizable metric analysis",
+    description="A comprehensive tool for analyzing and visualizing EEG data with focus on customizable metric analysis",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/SoenkevL/EEGAnalyzer",
@@ -28,6 +28,7 @@ setup(
     install_requires=[
         "edgeofpy==0.0.1",
         "icecream==2.1.3",
+        "customtkinter==5.2.2",
         "mat4py==0.6.0",
         "matplotlib==3.9.2",
         "mne==1.8.0",
@@ -41,7 +42,8 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "eeganalyzer=eeganalyzer.cli:main",
+            "eeganalyzer=eeganalyzer.cli.cli:main",
+            "eegviewer=eeganalyzer.gui.run_metrics_viewer:main",
         ],
     },
     include_package_data=True,
