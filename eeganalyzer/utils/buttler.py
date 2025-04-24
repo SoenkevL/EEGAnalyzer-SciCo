@@ -5,6 +5,7 @@ This module provides utility functions for EEG analysis.
 """
 
 import os
+from typing import Tuple, Optional, Union, Dict, List, Any
 
 
 class Buttler:
@@ -12,10 +13,10 @@ class Buttler:
     A class for utility functions.
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         pass
     
-    def check_outfile_name(self, outfile, file_exists_ok=False):
+    def check_outfile_name(self, outfile: str, file_exists_ok: bool = False) -> Tuple[bool, str]:
         """
         Checks if the outfile name is valid and if the directory exists.
         
@@ -43,7 +44,7 @@ class Buttler:
         
         return True, ''
     
-    def find_task_from_filename(self, filepath):
+    def find_task_from_filename(self, filepath: Optional[str]) -> Optional[str]:
         """
         Extracts the task label from a filename.
         
@@ -69,7 +70,7 @@ class Buttler:
         
         return None
     
-    def map_chaos_pipe_result_to_float(self, result):
+    def map_chaos_pipe_result_to_float(self, result: Any) -> Optional[float]:
         """
         Maps the result of the chaos pipeline to a float.
         

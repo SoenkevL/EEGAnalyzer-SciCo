@@ -4,14 +4,13 @@ Database utilities for EEG analysis.
 This module provides functions for interacting with the database.
 """
 
-import os
 import uuid
 import pandas as pd
 from datetime import datetime
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, Session, sessionmaker
 from sqlalchemy import ForeignKey, String, create_engine, text, select, DateTime, func, Integer, Table, Column
 from sqlalchemy.exc import SQLAlchemyError
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict, Any, Tuple, Type
 # declaring a shorthand for the declarative base class
 class Base(DeclarativeBase):
     pass
@@ -31,12 +30,12 @@ class DataSet(Base):
 class EEG(Base):
     __tablename__ = "eeg"
 
-    id = mapped_column(String, primary_key=True, default=str(uuid.uuid4().hex))
-    dataset_id = mapped_column(ForeignKey("dataset.id"))
-    last_altered = mapped_column(DateTime, default=func.now(), onupdate=func.now())
-    filename = mapped_column(String, nullable=False)
-    filetype = mapped_column(String, nullable=False)
-    filepath = mapped_column(String, nullable=False)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=str(uuid.uuid4().hex))
+    dataset_id: Mapped[str] = mapped_column(ForeignKey("dataset.id"))
+    last_altered: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
+    filename: Mapped[str] = mapped_column(String, nullable=False)
+    filetype: Mapped[str] = mapped_column(String, nullable=False)
+    filepath: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[Optional[str]]
 
     dataset: Mapped[DataSet] = relationship(back_populates='eegs')
@@ -46,10 +45,10 @@ class EEG(Base):
 class Experiment(Base):
     __tablename__ = "experiment"
 
-    id = mapped_column(String, primary_key=True, default=str(uuid.uuid4().hex))
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=str(uuid.uuid4().hex))
     last_altered: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
-    metric_set_name = mapped_column(String, nullable=False)  # Name of the metric set (e.g., 'entropy')
-    run_name = mapped_column(String, nullable=False)  # Name of the metric set (e.g., 'entropy')
+    metric_set_name: Mapped[str] = mapped_column(String, nullable=False)  # Name of the metric set (e.g., 'entropy')
+    run_name: Mapped[str] = mapped_column(String, nullable=False)  # Name of the metric set (e.g., 'entropy')
     description: Mapped[Optional[str]]
 
     fs: Mapped[Optional[int]]
@@ -68,20 +67,40 @@ class Experiment(Base):
 
 class ResultAssociation(Base):
     __tablename__ = "result_association"
-    experiment_id = mapped_column(ForeignKey("experiment.id"), primary_key=True)
-    eeg_id = mapped_column(ForeignKey("eeg.id"), primary_key=True)
+    experiment_id: Mapped[str] = mapped_column(ForeignKey("experiment.id"), primary_key=True)
+    eeg_id: Mapped[str] = mapped_column(ForeignKey("eeg.id"), primary_key=True)
     result_path: Mapped[Optional[str]]
 
 class Alchemist:
 # functions to modify tables in the database
 
     @staticmethod
-    def make_session(engine):
+    def make_session(engine) -> Session:
+        """
+        Create a new SQLAlchemy session from the provided engine.
+        
+        Args:
+            engine: SQLAlchemy engine to create session from
+            
+        Returns:
+            A new SQLAlchemy session
+        """
         Session = sessionmaker(engine)
         return Session()
 
     @staticmethod
-    def remove_table(engine, table_name: str, del_from_metadata = True):
+    def remove_table(engine, table_name: str, del_from_metadata: bool = True) -> None:
+        """
+        Remove a table from the database and optionally from the metadata.
+        
+        Args:
+            engine: SQLAlchemy engine connected to the database
+            table_name: Name of the table to remove
+            del_from_metadata: If True, also removes the table from the metadata
+            
+        Returns:
+            None
+        """
         try:
             # Execute the DROP TABLE command
             stmt = text(f'DROP TABLE IF EXISTS {table_name}')
@@ -98,7 +117,19 @@ class Alchemist:
             print(f"Error: {e}")
 
     @staticmethod
-    def add_column(engine, table_name:str , column_name:str, column_type:str):
+    def add_column(engine, table_name: str, column_name: str, column_type: str) -> None:
+        """
+        Add a new column to an existing table.
+        
+        Args:
+            engine: SQLAlchemy engine connected to the database
+            table_name: Name of the table to which the column will be added
+            column_name: Name of the new column
+            column_type: SQL type of the new column
+            
+        Returns:
+            None
+        """
         try:
             # Compile the column type for the specific database dialect
 
@@ -141,7 +172,18 @@ class Alchemist:
             print(f"Error: {e}")
 
     @staticmethod
-    def remove_column(engine, table_name, column_name):
+    def remove_column(engine, table_name: str, column_name: str) -> None:
+        """
+        Remove a column from an existing table.
+        
+        Args:
+            engine: SQLAlchemy engine connected to the database
+            table_name: Name of the table from which the column will be removed
+            column_name: Name of the column to remove
+            
+        Returns:
+            None
+        """
         try:
             # Execute the ALTER TABLE command to drop the column
             stmt = text(f'ALTER TABLE {table_name} DROP COLUMN {column_name}')
@@ -153,14 +195,17 @@ class Alchemist:
 
     # function to retrieve data from the databse
     @staticmethod
-    def find_entries(session, table_class, **kwargs):
+    def find_entries(session: Session, table_class: type, **kwargs) -> List[Any]:
         """
-        Check if an entry exists in the table based on given parameters.
-
-        :param engine: SQLAlchemy engine connected to the database.
-        :param table_class: The ORM class representing the table.
-        :param kwargs: Column-value pairs to filter the query.
-        :return: True if the entry exists, False otherwise.
+        Find entries in the table based on given parameters.
+    
+        Args:
+            session: SQLAlchemy session connected to the database
+            table_class: The ORM class representing the table
+            kwargs: Column-value pairs to filter the query
+            
+        Returns:
+            List of matching ORM objects, or empty list if none found or error occurs
         """
         try:
             query = select(table_class).filter_by(**kwargs)
@@ -171,26 +216,32 @@ class Alchemist:
             return []
 
     @staticmethod
-    def get_column_value_pairs(orm_object):
+    def get_column_value_pairs(orm_object: Any) -> Dict[str, Any]:
         """
         Retrieve column-value pairs from an SQLAlchemy ORM object as a dictionary.
-
-        :param orm_object: The SQLAlchemy ORM object.
-        :return: A dictionary containing column-value pairs.
+    
+        Args:
+            orm_object: The SQLAlchemy ORM object
+            
+        Returns:
+            A dictionary containing column-value pairs
         """
         table_class = type(orm_object)
         column_value_pairs = {column.name: getattr(orm_object, column.name) for column in table_class.__table__.columns}
         return column_value_pairs
 
     @staticmethod
-    def get_result_path_from_ids(session, experiment_id, eeg_id):
+    def get_result_path_from_ids(session: Session, experiment_id: str, eeg_id: str) -> Optional[str]:
         """
         Retrieve the result path from the ResultAssociation table based on experiment_id and eeg_id.
-
-        :param session: SQLAlchemy session object.
-        :param experiment_id: ID of the experiment.
-        :param eeg_id: ID of the EEG.
-        :return: The result path if found, None otherwise.
+    
+        Args:
+            session: SQLAlchemy session object
+            experiment_id: ID of the experiment
+            eeg_id: ID of the EEG
+            
+        Returns:
+            The result path if found, None otherwise
         """
         results = Alchemist.find_entries(session, ResultAssociation, experiment_id=experiment_id, eeg_id=eeg_id)
         if results:
@@ -200,7 +251,7 @@ class Alchemist:
 
     # function to add data to the database
     @staticmethod
-    def add_metric_data_table(con, experiment_id: str, eeg_id: str, df: pd.DataFrame, table_exists='append'):
+    def add_metric_data_table(con, experiment_id: str, eeg_id: str, df: pd.DataFrame, table_exists: str = 'append') -> Optional[str]:
         """
         Add metric data to the database for a specific experiment and EEG.
         Creates a table named 'data_experiment_{experiment_id}_eeg_{eeg_id}'.
@@ -264,7 +315,8 @@ class Alchemist:
             return None
 
     @staticmethod
-    def add_or_update_eeg_entry(session, dataset_id, filepath, filename, file_extension):
+    def add_or_update_eeg_entry(session: Session, dataset_id: str, filepath: str, 
+                                filename: str, file_extension: str) -> Optional[EEG]:
         """
         Initialize or retrieve an EEG entry in the database.
 
@@ -302,8 +354,11 @@ class Alchemist:
         return eeg
 
     @staticmethod
-    def add_or_update_experiment(session, metric_set_name, run_name, fs=None,
-                            start=None, stop=None, lower_cutoff=None, upper_cutoff=None, window_len=None, window_overlap=None, montage=None):
+    def add_or_update_experiment(session: Session, metric_set_name: str, run_name: str, fs: Optional[int] = None,
+                             start: Optional[int] = None, stop: Optional[int] = None, 
+                             lower_cutoff: Optional[float] = None, upper_cutoff: Optional[float] = None, 
+                             window_len: Optional[int] = None, window_overlap: Optional[int] = None, 
+                             montage: Optional[str] = None) -> Experiment:
         """
         Initialize or retrieve a MetricSet entry in the database.
 
@@ -354,7 +409,8 @@ class Alchemist:
             raise ValueError(f"Multiple metric sets found for {metric_set_name}")
 
     @staticmethod
-    def add_or_update_dataset(session, dataset_name, dataset_path, dataset_description):
+    def add_or_update_dataset(session: Session, dataset_name: str, dataset_path: str, 
+                             dataset_description: str) -> Optional[DataSet]:
         """
         Add or update a dataset in the database.
 
@@ -385,7 +441,8 @@ class Alchemist:
         return dataset
 
     @staticmethod
-    def add_result_path(session, experiment_id, eeg_id, result_path):
+    def add_result_path(session: Session, experiment_id: str, eeg_id: str, 
+                       result_path: str) -> Optional[ResultAssociation]:
         matching_results = Alchemist.find_entries(session, ResultAssociation, experiment_id=experiment_id, eeg_id=eeg_id)
         if len(matching_results) == 0:
             print('No result found for experiment and eeg, please ensure experiment and eeg are in the database')
@@ -399,7 +456,7 @@ class Alchemist:
             return None
 
     @staticmethod
-    def initialize_tables(path=None, path_is_relative=True):
+    def initialize_tables(path: Optional[str] = None, path_is_relative: bool = True):
         if path:
             if path_is_relative:
                 engine = create_engine(f"sqlite+pysqlite:///{path}")
@@ -413,7 +470,7 @@ class Alchemist:
     # functions to test functionality
 
     @staticmethod
-    def test_adding_data(db_path):
+    def test_adding_data(db_path: str) -> None:
         """Test the data addition pipeline with a sample EEG dataset and metrics."""
         # Define the metric name first (needed for metric set creation)
         engine = Alchemist.initialize_tables(db_path)
