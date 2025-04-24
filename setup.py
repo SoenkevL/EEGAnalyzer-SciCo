@@ -39,7 +39,7 @@ setup(
         "pandas==2.2.3",
         "powerlaw==1.5",
         "PyYAML==6.0.2",
-        "PyQt6==6.7.1"
+        "PyQt6==6.7.1",
         "scipy==1.14.1",
         "SQLAlchemy>=2.0.40",
     ],
