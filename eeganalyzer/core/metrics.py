@@ -21,6 +21,7 @@ def select_metrics(name):
             - metrics_name_list (list): List of names for the functions, used to save the results.
             - kwargs_list (list): List of dictionaries with additional arguments for the functions.
     """
+    # TODO update this file to have some more generally sensible categories
     if name == 'old_without_chaos':  ###################################################################################
         metrics_name_list = ['complexity_lempel_ziv', 'fractal_dimension_katz', 'entropy_multiscale',
                              'aval_fano_factor', 'entropy_shannon', 'entropy_permutation',

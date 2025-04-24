@@ -6,6 +6,7 @@ This module provides the Array_processor class for processing array data.
 
 import numpy as np
 import pandas as pd
+from typing import List, Dict, Tuple, Optional, Any, Union
 
 from eeganalyzer.core.metrics import select_metrics
 from eeganalyzer.utils.buttler import Buttler
@@ -43,14 +44,20 @@ class Array_processor:
             Divides data into epochs and calculates metrics for each, returning results in a DataFrame.
     """
 
-    def __init__(self, data=None, metric_name=None, sfreq=None, axis_of_time = 0):
+    def __init__(self, data: Optional[pd.DataFrame] = None, metric_name: Optional[str] = None, 
+                 sfreq: Optional[float] = None, axis_of_time: int = 0):
+            self.data: Optional[pd.DataFrame] = None
+            self.metric_name: Optional[str] = None
+            self.sfreq: Optional[float] = None
+            self.axis_of_time: int = 0
+            self.buttler: Buttler = Buttler()
+            
             self.set_data(data)
             self.set_metric_name(metric_name)
-            self.buttler = Buttler()
             self.set_sfreq(sfreq)
             self.set_axis_of_time(axis_of_time)
         
-    def set_sfreq(self, sfreq):
+    def set_sfreq(self, sfreq: float) -> None:
         """
         Sets the sampling frequency (sfreq) attribute.
     
@@ -75,7 +82,7 @@ class Array_processor:
             raise ValueError("Data must be a pandas DataFrame.")
         self.data = data
 
-    def set_axis_of_time(self, axis_of_time):
+    def set_axis_of_time(self, axis_of_time: int) -> None:
         """
         Sets the axis representing time in the data.
         
@@ -86,7 +93,7 @@ class Array_processor:
             raise ValueError("Axis of time must be either 1 (columns) or 0 (rows).")
         self.axis_of_time = axis_of_time
 
-    def set_metric_name(self, metric_name: str):
+    def set_metric_name(self, metric_name: str) -> None:
         """
         Sets the name of the metric to calculate.
 
@@ -97,7 +104,7 @@ class Array_processor:
             raise ValueError("Metric name must be a non-empty string.")
         self.metric_name = metric_name
 
-    def transpose_data(self):
+    def transpose_data(self) -> None:
         """
         Transposes the data based on the axis of time and updates the axis_of_time attribute.
         """
@@ -111,7 +118,7 @@ class Array_processor:
             self.data = self.data.T
             self.axis_of_time = 1
 
-    def initialize_metric_functions(self, name):
+    def initialize_metric_functions(self, name: str) -> Tuple[List[callable], List[str], List[Dict[str, Any]]]:
         """
         Loads the metric functions, their names, and corresponding arguments from the Metrics module.
         
@@ -146,7 +153,9 @@ class Array_processor:
 
         return metrics_functions, metrics_name_list, kwargs_list
 
-    def apply_metric_func(self, data, metric_func, kwargs):
+    def apply_metric_func(self, data: Union[np.ndarray, List[float]], 
+                         metric_func: callable, 
+                         kwargs: Optional[Dict[str, Any]]) -> Any:
         '''
         Applies a function to a timeseries (data channel).
         
@@ -221,7 +230,7 @@ class Array_processor:
 
     ############################################ advanced functions ########################################################
 
-    def process_result_array(self, result_array: list, metric_name_array: list[str]) -> list:
+    def process_result_array(self, result_array: List[Any], metric_name_array: List[str]) -> List[Tuple[str, Any]]:
         '''
         Processes the results from calculated metrics and extracts relevant information for further use.
         
@@ -273,9 +282,11 @@ class Array_processor:
 
         return processed_array
 
-    def create_result_dict_from_eeg_frame(self, data_frame, metrics_func_list: list,
-                                          metrics_name_list: list[str], kwargs_list: list[dict],
-                                          channelwise=True) -> (dict, list[str]):
+    def create_result_dict_from_eeg_frame(self, data_frame: Union[pd.DataFrame, np.ndarray], 
+                                          metrics_func_list: List[callable],
+                                          metrics_name_list: List[str], 
+                                          kwargs_list: List[Dict[str, Any]],
+                                          channelwise: bool = True) -> Tuple[Dict[Union[str, int], List[Tuple[str, Any]]], List[str]]:
 
         '''
         Creates a dictionary of computed metrics for EEG data.
@@ -340,8 +351,11 @@ class Array_processor:
 
         return result_dict, metrics_name_list
 
-    def create_dataframe_from_result_dict(self, result_dict: dict, metric_name_array: list[str],
-                                          start_data_record: float, duration: float, label: str = '<missing>') -> pd.DataFrame:
+    def create_dataframe_from_result_dict(self, result_dict: Dict[Union[str, int], List[Tuple[str, Any]]], 
+                                          metric_name_array: List[str],
+                                          start_data_record: float, 
+                                          duration: float, 
+                                          label: str = '<missing>') -> pd.DataFrame:
 
         '''
         Generates a DataFrame using the given result dictionary and annotation details.
@@ -395,8 +409,9 @@ class Array_processor:
 
         return sub_results_frame
 
-    def calc_metrics_from_eeg_dataframe_and_annotations(self, dataframe,
-                                                        annot_label: str, annot_startDataRecord: float,
+    def calc_metrics_from_eeg_dataframe_and_annotations(self, dataframe: pd.DataFrame,
+                                                        annot_label: Union[str, int, float], 
+                                                        annot_startDataRecord: float,
                                                         annot_duration: float) -> pd.DataFrame:
 
         '''
@@ -441,8 +456,8 @@ class Array_processor:
 
         return sub_results_frame
 
-    def epoching(self, duration: int, start_time: int = 0, stop_time: int = None,
-                 overlap: int = 0, task: str = None) -> pd.DataFrame:
+    def epoching(self, duration: int, start_time: int = 0, stop_time: Optional[int] = None,
+                 overlap: int = 0, task: Optional[str] = None) -> pd.DataFrame:
         """
         Divide data into epochs and calculate metrics for each epoch.
 

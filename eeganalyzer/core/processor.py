@@ -6,6 +6,7 @@ This module provides the main processing functions for EEG analysis.
 
 import os
 import sys
+from typing import Dict, List, Optional, Union, Any, Tuple
 import pandas as pd
 from datetime import datetime
 from multiprocesspandas import applyparallel
@@ -15,7 +16,7 @@ from eeganalyzer.core.csv_processor import CSVProcessor
 from eeganalyzer.utils.database import Alchemist
 
 
-def add_or_update_dataset(session, config):
+def add_or_update_dataset(session: Any, config: Dict[str, Any]) -> int:
     """
     Add or update a dataset in the database.
 
@@ -34,11 +35,14 @@ def add_or_update_dataset(session, config):
     return dataset.id
 
 
-def add_or_update_eeg(session, dataset_id, filepath):
+def add_or_update_eeg(session: Any, dataset_id: int, filepath: str) -> Any:
     """
     Add or update an eeg in the database.
 
     Args:
+        session: Database session object
+        dataset_id: ID of the dataset to associate with this EEG
+        filepath: Path to the EEG file
 
     Returns:
         eeg_id: The id of the eeg object that was added or updated.
@@ -56,7 +60,7 @@ def add_or_update_eeg(session, dataset_id, filepath):
     return eeg
 
 
-def add_or_update_experiment(session, experiment, run):
+def add_or_update_experiment(session: Any, experiment: Dict[str, Any], run: Dict[str, Any]) -> Any:
     experiment = Alchemist.add_or_update_experiment(
             session,
             metric_set_name=experiment['name'],
@@ -73,7 +77,7 @@ def add_or_update_experiment(session, experiment, run):
     return experiment
 
 
-def populate_data_tables(session, experiment, table_exists='append'):
+def populate_data_tables(session: Any, experiment: Any, table_exists: str = 'append') -> Optional[str]:
     experiment_id = experiment.id
     table_name = None
     for eeg in experiment.eegs:
@@ -87,7 +91,7 @@ def populate_data_tables(session, experiment, table_exists='append'):
 
 
 def get_files_dataframe(bids_folder: str, infile_ending: str, outfile_ending: str, folder_extensions: str,
-                        session, experiment, dataset_id) -> pd.DataFrame:
+                        session: Any, experiment: Any, dataset_id: int) -> pd.DataFrame:
     """
     Creates a DataFrame containing valid file paths, their corresponding output paths,
     and the processed status (whether the output file already exists).
@@ -97,6 +101,9 @@ def get_files_dataframe(bids_folder: str, infile_ending: str, outfile_ending: st
         outfile_ending (str): The expected output file ending.
         folder_extensions (str): The folder extension to be appended to the output folder name.
         infile_ending (str): The expected input file ending.
+        session: Database session object.
+        experiment: Experiment object to associate with files.
+        dataset_id (int): ID of the dataset to associate with files.
 
     Returns:
         pd.DataFrame: A DataFrame where:
@@ -138,8 +145,9 @@ def get_files_dataframe(bids_folder: str, infile_ending: str, outfile_ending: st
     return df
 
 
-def process_file(row, metric_set_name, annotations, lfreq, hfreq, montage, ep_start, ep_stop, ep_dur, ep_overlap, sfreq,
-                 recompute):
+def process_file(row: pd.Series, metric_set_name: str, annotations: List[str], lfreq: Optional[Union[int, float]], 
+                 hfreq: Optional[Union[int, float]], montage: str, ep_start: Optional[int], ep_stop: Optional[int], 
+                 ep_dur: Optional[int], ep_overlap: int, sfreq: Union[int, float], recompute: bool) -> None:
     """
     Processes a single file.
 
@@ -147,14 +155,14 @@ def process_file(row, metric_set_name, annotations, lfreq, hfreq, montage, ep_st
         row (pd.Series): A row from the DataFrame containing file information.
         metric_set_name (str): The name of the metric set to compute.
         annotations (list): The annotations of interest.
-        lfreq (int): Lower cutoff frequency for filtering.
-        hfreq (int): Upper cutoff frequency for filtering.
+        lfreq (int or float): Lower cutoff frequency for filtering.
+        hfreq (int or float): Upper cutoff frequency for filtering.
         montage (str): The montage to apply.
         ep_start (int): Epoching start time.
         ep_stop (int): Epoching stop time.
         ep_dur (int): Epoch duration.
         ep_overlap (int): Overlap of epochs.
-        sfreq (int): Sampling frequency.
+        sfreq (int or float): Sampling frequency.
         recompute (bool): Whether to recompute metrics.
     """
     file_path = row['file_path']
@@ -203,13 +211,14 @@ def process_file(row, metric_set_name, annotations, lfreq, hfreq, montage, ep_st
         print(f"Skipping already processed file: {file_path}")
 
 
-def process_experiment(config: dict, log_file: str, num_processes: int=4):
+def process_experiment(config: Dict[str, Any], log_file: Optional[str], num_processes: int = 4) -> None:
     """
     Processes experiments and their respective runs as specified in the YAML configuration.
 
     Args:
         config (dict): The dictionary representation of the YAML configuration file.
         log_file (str): The path to the log file where outputs and logs will be saved.
+        num_processes (int): Number of processes to use for parallel processing.
     """
     # Redirect all print outputs to the log file
     if log_file:
