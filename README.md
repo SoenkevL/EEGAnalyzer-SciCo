@@ -56,7 +56,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 ```bash
-pip install .
+pip install -e .
 ```
 A version that can be installed via pip from PyPI is coming soon.
 
