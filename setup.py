@@ -8,7 +8,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="eeganalyzer-scico",
+    name="eeganalyzer",
     version="0.1.0",
     author="SoenkevL",
     author_email="",
@@ -45,8 +45,8 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "eeganalyzer-scico=eeganalyzer.cli.cli:main",
-            "eegviewer-scico=eeganalyzer.gui.run_metrics_viewer:main",
+            "eeganalyzer=eeganalyzer.cli.cli:main",
+            "eegviewer=eeganalyzer.gui.run_metrics_viewer:main",
         ],
     },
     include_package_data=True,
