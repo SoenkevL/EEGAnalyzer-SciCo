@@ -1,4 +1,4 @@
-# EEGAnalyzer
+# EEGAnalyzer (eeganalyzer-scico)
 
 A comprehensive tool for analyzing EEG data with focus on customizable metric analysis. Originally designed to analyze the
 chaotic dynamics, complexity assessment, fractal-properties, and entropy of EEG signals.  
