@@ -28,7 +28,7 @@ class CSVProcessor:
         self.buttler = Buttler()  # Optional utility for handling file operations
 
 
-    def load_data_file(self, data_file: str, header, index):
+    def load_data_file(self, data_file: str, header, index) -> pd.DataFrame:
         """
         Loads a CSV file into a pandas DataFrame and sets the sampling frequency.
 
@@ -168,7 +168,7 @@ class CSVProcessor:
                 self.downsample(resamp_freq)
 
             # Initialize the ArrayProcessor for metric calculation
-            array_processor = Array_processor.Array_processor(
+            array_processor = Array_processor(
                 data=self.data,  # Processed data
                 sfreq=self.sfreq,
                 axis_of_time=0,

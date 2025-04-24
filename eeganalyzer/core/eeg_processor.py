@@ -260,7 +260,7 @@ class EEG_processor:
         print(f'Data shape: {data.shape}')
 
         # Initialize the ArrayProcessor for metric calculations
-        array_processor = Array_processor.Array_processor(
+        array_processor = Array_processor(
             data=data[eeg_cols],
             sfreq=self.sfreq,
             axis_of_time=0,
@@ -335,7 +335,7 @@ class EEG_processor:
         eeg_cols = self.extract_eeg_columns(data)
 
         # Initialize the ArrayProcessor with relevant EEG data and parameters
-        array_processor = Array_processor.Array_processor(
+        array_processor = Array_processor(
             data=data.loc[:,eeg_cols],
             sfreq=self.sfreq,
             axis_of_time=0,
