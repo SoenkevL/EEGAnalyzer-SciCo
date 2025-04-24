@@ -1,8 +1,8 @@
-# config file for running experiments using run_fram_bids script
+# config file for running experiments
 # two levels are used for defining the parameters. Experiments and runs. Each config can have multiple experiments
 # which in turn can have multiple runs
 experiments:
-  - #checking the full signal for the whole recording time
+  -
     # name of the experiment for logging
     name: example
     # further information on the dataset (can be left empty)
@@ -33,7 +33,8 @@ experiments:
     outfile_ending: 'metrics.csv'
     # if files which allready exist should be recomputed
     recompute: True
-    # different metrics can be applied to the data which are stores in Metrics.py, here the name of a viable config needs to be given
+    # different metrics can be applied to the data which are stored in eeganalyzer/core/metrics.py. The name of a viable config needs to be given
+    # The user can add his own metric sets to the file as well
     metric_set_name: final-0
     # definition of the different runs for this experiment where montage and filtering can be adapted
     runs:
@@ -42,8 +43,10 @@ experiments:
         name: lowFreq
         # filter settings to apply to eeg, can be left empty
         # not specifying a l_freq or h_freq means no filtering will be applied for the lower or upper bound
-        # filters are defined to filter inbetween l_freq and h_freq, e.g. l_freq=1 and h_freq=4 is a bandpass filter between
-        # 1 and 4 Hz, l_freq=1, h_freq=None is a highpass filter of 1 Hz, l_freq=4, and h_freq=1 is a bandstop filter 1-4 Hz
+        # filters are defined to filter inbetween l_freq and h_freq, some examples:
+        # - l_freq=1 and h_freq=4 is a bandpass filter between 1 and 4 Hz
+        # - l_freq=1, h_freq=None is a highpass filter of 1 Hz
+        # - l_freq=4, and h_freq=1 is a bandstop filter 1-4 Hz
         filter:
           h_freq: 12
           l_freq: 0.5
@@ -57,9 +60,6 @@ experiments:
       - # name of the run for debugging
         name: allFreq
         # filter settings to apply to eeg, can be left empty
-        # not specifying a l_freq or h_freq means no filtering will be applied for the lower or upper bound
-        # filters are defined to filter inbetween l_freq and h_freq, e.g. l_freq=1 and h_freq=4 is a bandpass filter between
-        # 1 and 4 Hz, l_freq=1, h_freq=None is a highpass filter of 1 Hz, l_freq=4, and h_freq=1 is a bandstop filter 1-4 Hz
         filter:
           h_freq: 60
           l_freq: 0.5

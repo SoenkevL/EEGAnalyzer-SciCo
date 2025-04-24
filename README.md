@@ -8,11 +8,11 @@ include mne for eeg processing, pandas to handle dataframes, neurokit2 and edge-
 ## Features
 
 - **Analysis Capabilities**:
+  - Custom python functions
   - Chaotic dynamics analysis
   - Complexity metrics evaluation
   - Fractal property detection
   - Entropy calculation methods
-  - Custom python functions
 
 - **Modular Architecture**:
   - Preset metric sets to start analysis right away 
@@ -35,6 +35,8 @@ include mne for eeg processing, pandas to handle dataframes, neurokit2 and edge-
 
 - **Output Format**:
   - Metrics saved in standardized CSV format
+  - Additionally creates a relational database allowing easy comparison of metrics with each other and the original eeg files
+  - Provides a simple GUI to visualize the metrics and compare them to the original eeg files
 
 ## Requirements
 - Python 3.8+
@@ -44,15 +46,21 @@ include mne for eeg processing, pandas to handle dataframes, neurokit2 and edge-
 ### As a Python Package
 
 #### From source
-
+We recommend installing the package within a virtual environment.
 ```bash
 git clone https://github.com/SoenkevL/EEGAnalyzer.git
 cd EEGAnalyzer
+```
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+```bash
 pip install -e .
 ```
+A version that can be installed via pip from PyPI is coming soon.
 
-### Using the Command-line Interface
-
+## Using the Command-line Interface
 Once installed as a package, you can use the command-line interface:
 
 To analyze eegs:
@@ -70,7 +78,7 @@ eegviwer --sql_path <path_to_sqlite_database>
 ```
 Arguments:
 - `--sql_path`: Path to the SQLite database (required) 
-### Using the Python API
+## Using the Python API
 
 You can also use the package as a Python library:
 
@@ -86,34 +94,16 @@ process_experiment(config, 'results/analysis.log')
 ```
 
 ## Installation with example (Development)
+### 1. Follow the installation instructions
+Make sure you have installed the package as described above.
 
-### 1. Clone the repository:
-
-```
-git clone https://github.com/SoenkevL/EEGAnalyzer.git 
-cd EEGAnalyzer
-```
-
-### 2. Create and activate virtual environment
-
-```
-python3 -m venv .eeg_venv
-source .eeg_venv/bin/activate  # On Windows use `.eeg_venv\Scripts\activate`
-```
-Make sure that the virtual environment is always activated while working with the Tool.
-### 3. Install dependencies
-
-```
-pip install -r requirements.txt
-```
-
-### 4. Prepare example data directory structure
+### 2. Prepare example data directory structure
 
 ```
 mkdir -p example/eeg
 ```
 
-### 5. Move downloaded file to correct location
+### 3. Move downloaded file to correct location
 
 Now we need to download an example eeg to test the pipeline on.
 Any eeg file in edf format could be used but some changes to the scripts may be necessary then.
@@ -130,7 +120,7 @@ mv PN00-1.edf example/eeg/PN001-original.edf
 
 This will also rename the file so that it is properly handled by the config (touched upon in step 7)
 
-### 6. Preprocessing the file
+### 4. Preprocessing the file
 
 There are multiple possible approaches for Preprocessing the eeg in the folder *eeg_reading_and_preprocessing*.
 1. Navigate to the folder and use the ipython notebook for an interactive experience
@@ -149,7 +139,7 @@ When working with arch linux simply install the following package:
 pacman -S qtcreator
 ```
 
-### 7. Inspecting the configuration file
+### 5. Inspecting the configuration file
 
 In order to process the files we use configuration files. An example of such a file can be found in
 *example/example_config_eeg.yaml* \
@@ -157,26 +147,31 @@ Within the configuration file alot of parameters can be set which are important 
 things like: Data folder, metric set, epoching, annotation usage and more. All parameters are described within the
 example config file.
 
-### 8. Run the main script with configuration
+### 6. Run the main script with configuration
 
 In order to calculate the metrics on our eeg files we can run the example configuration using the following command.    
 This will create the metrics and a log file, alternatively the command can be run without the logfile argument to see the output in the terminal.  
 Make sure you are inside the project root with the virtual environment activated and the requirements installed.
 
 ```
-python3 OOP_Analyzer/apply_script_to_bids_folder_oop.py \
+    eeganalyzer \
     --yaml_config example/example_config_eeg.yaml \
     --logfile_path example/test.log
 ```
 
-### 8. Analysing the produced metrics
+### 7. Analysing the produced metrics
 
-Now that we created two csv files containing the data from our two specified runs we can go ahead and do some analysis on
-these frames. An example of a very few things that can be done with these frames is provided in the example folder.
+Now that we created two csv files and saved our data to our database we can go ahead and do some analysis on it.
+This can either be done in the GUI or in python.
+For the gui simply run
+```bash
+eegviewer example/EEGAnalyzer.sqlite
+```
+Alternatively you can use python to do the analysis directly on the database or the computed csv files.
 ```
 python3 example/metric_analysis_example.py
 ```
-### 9. Summary
+### 8. Summary
 
 The provided example is intended as guidance to this pipeline. It cant show all the things that it can do and now is the point
 where you need to start experimenting with it yourself.
