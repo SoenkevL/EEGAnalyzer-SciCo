@@ -5,9 +5,7 @@ This module provides the main entry point for the EEG analysis command-line inte
 """
 
 import argparse
-import os
 import sys
-from datetime import datetime
 
 from eeganalyzer.core.processor import process_experiment
 from eeganalyzer.utils.config import load_yaml_file, check_file_exists_and_create_path
