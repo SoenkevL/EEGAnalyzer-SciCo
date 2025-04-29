@@ -43,22 +43,25 @@ include mne for eeg processing, pandas to handle dataframes, neurokit2 and edge-
 
 ## Installation
 
-### As a Python Package
-
-#### From source
 We recommend installing the package within a virtual environment.
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### From PyPiTest
+```bash
+python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple eeganalyzer
+```
+
+### From source
 ```bash
 git clone https://github.com/SoenkevL/EEGAnalyzer.git
 cd EEGAnalyzer
 ```
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+pip install .
 ```
-```bash
-pip install -e .
-```
-A version that can be installed via pip from PyPI is coming soon.
 
 ## Using the Command-line Interface
 Once installed as a package, you can use the command-line interface:
@@ -95,7 +98,8 @@ process_experiment(config, 'results/analysis.log')
 
 ## Installation with example (Development)
 ### 1. Follow the installation instructions
-Make sure you have installed the package as described above.
+Make sure you have installed the package as described above. If you decide you install the package via pip and not from
+source please make sure you get the folder example from the github and add it to your current project.
 
 ### 2. Prepare example data directory structure
 
@@ -120,7 +124,7 @@ mv PN00-1.edf example/eeg/PN001-original.edf
 
 This will also rename the file so that it is properly handled by the config (touched upon in step 7)
 
-### 4. Preprocessing the file
+### 4. Preprocessing the file (optional)
 
 There are multiple possible approaches for Preprocessing the eeg in the folder *eeg_reading_and_preprocessing*.
 1. Navigate to the folder and use the ipython notebook for an interactive experience
@@ -141,7 +145,7 @@ pacman -S qtcreator
 
 ### 5. Inspecting the configuration file
 
-In order to process the files we use configuration files. An example of such a file can be found in
+In order to process the files we use configuration files. An example of such a file can be found on github in
 *example/example_config_eeg.yaml* \
 Within the configuration file alot of parameters can be set which are important for the processing steps. This includes
 things like: Data folder, metric set, epoching, annotation usage and more. All parameters are described within the
@@ -167,6 +171,8 @@ For the gui simply run
 ```bash
 eegviewer example/EEGAnalyzer.sqlite
 ```
+In case you have problems with QT at this point and did not do preprocessing, please see the section above for possible fixes.
+
 Alternatively you can use python to do the analysis directly on the database or the computed csv files.
 ```
 python3 example/metric_analysis_example.py

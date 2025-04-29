@@ -13,11 +13,12 @@ readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: GPL-3.0-or-later",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
 dependencies = [
     "edgeofpy==0.0.1",
     "icecream==2.1.3",
