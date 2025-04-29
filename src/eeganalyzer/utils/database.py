@@ -327,18 +327,41 @@ class Alchemist:
             return None
 
     @staticmethod
+    def create_unique_id(session: Session, table_class: Type[Base], max_retries=100) -> str:
+        """
+        Create a unique ID that doesn't exist in the specified table.
+        
+        Args:
+            session: SQLAlchemy session connected to the database
+            table_class: The ORM class representing the table (DataSet, EEG, or Experiment)
+            
+        Returns:
+            A unique ID string that doesn't exist in the table
+        """
+        attempt = 0
+        while attempt < max_retries:
+            new_id = str(uuid.uuid4().hex)
+            # Check if the ID already exists in the table
+            existing = Alchemist.find_entries(session, table_class, id=new_id)
+            if not existing:
+                return new_id
+            attempt += 1
+            print(f"ID collision detected, generating new ID")
+        raise RuntimeError(f"Failed to generate a unique ID after {max_retries} attempts.")
+
+    @staticmethod
     def add_or_update_eeg_entry(session: Session, dataset_id: str, filepath: str, 
                                 filename: str, file_extension: str) -> Optional[EEG]:
         """
         Initialize or retrieve an EEG entry in the database.
-
+    
         Parameters:
         - sqlpath: Path to the SQLite database
         - dataset_id: ID of the dataset this EEG belongs to
         - filepath: Path to the EEG file
         - filename: Name of the EEG file (without extension)
         - file_extension: Extension of the EEG file
-
+    
         Returns:
         - eeg_id: The id of the EEG object that was created or retrieved
         """
@@ -349,7 +372,8 @@ class Alchemist:
                                     filepath=filepath,
                                     filetype=file_extension)
         if len(matching_eegs) == 0:
-            eeg = EEG(id=str(uuid.uuid4().hex),
+            unique_id = Alchemist.create_unique_id(session, EEG)
+            eeg = EEG(id=unique_id,
                      filename=filename,
                      dataset_id=dataset_id,
                      filepath=filepath,
@@ -398,7 +422,9 @@ class Alchemist:
         )
 
         if len(matching_experiments) == 0:
+            unique_id = Alchemist.create_unique_id(session, Experiment)
             experiment = Experiment(
+                id=unique_id,
                 metric_set_name=metric_set_name,
                 run_name=run_name,
                 fs=fs,
@@ -439,7 +465,8 @@ class Alchemist:
         # Check if the dataset already exists in our database
         matching_datasets = Alchemist.find_entries(session, DataSet, name=dataset_name, path=dataset_path)
         if len(matching_datasets) == 0:
-            dataset = DataSet(id=str(uuid.uuid4().hex), name=dataset_name, path=dataset_path, description=dataset_description)
+            unique_id = Alchemist.create_unique_id(session, DataSet)
+            dataset = DataSet(id=unique_id, name=dataset_name, path=dataset_path, description=dataset_description)
             session.add(dataset)
             print(f"Created new dataset: {dataset_name}")
         elif len(matching_datasets) == 1:
