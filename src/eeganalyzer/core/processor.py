@@ -18,7 +18,7 @@ This module provides the main processing functions for EEG analysis.
 
 import os
 import sys
-from typing import Dict, List, Optional, Union, Any, Tuple
+from typing import Dict, List, Optional, Union, Any
 import pandas as pd
 from datetime import datetime
 from multiprocesspandas import applyparallel

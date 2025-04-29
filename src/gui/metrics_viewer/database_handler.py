@@ -17,13 +17,11 @@ This module provides functionality for interacting with the SQLite database
 containing EEG metrics data.
 """
 
-import os
-import sys
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 import pandas as pd
 
 # Import Alchemist from eeganalyzer.utils.database instead of OOP_Analyzer
-from eeganalyzer.utils.database import Alchemist, Experiment, EEG, DataSet
+from eeganalyzer.utils.database import Alchemist, Experiment
 
 from .utils import METADATA_COLUMNS
 

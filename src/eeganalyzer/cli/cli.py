@@ -18,7 +18,7 @@ This module provides the main entry point for the EEG analysis command-line inte
 
 import argparse
 import sys
-from typing import Dict, Any, Optional, Union, List
+from typing import Dict, Any, Union
 
 from eeganalyzer.core.processor import process_experiment
 from eeganalyzer.utils.config import load_yaml_file, check_file_exists_and_create_path

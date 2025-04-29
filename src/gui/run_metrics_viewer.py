@@ -54,7 +54,7 @@ def main():
         sys.exit(1)
 
     # Import App only after checking dependencies
-    from eeganalyzer.gui.metrics_viewer import App
+    from .metrics_viewer import App
 
     # Check if a database path is provided as a command-line argument
     if len(sys.argv) > 1:

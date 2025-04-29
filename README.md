@@ -83,8 +83,8 @@ Arguments:
 You can also use the package as a Python library:
 
 ```python
-from eeganalyzer.core.processor import process_experiment
-from eeganalyzer.utils.config import load_yaml_file
+from src.eeganalyzer.core.processor import process_experiment
+from src.eeganalyzer.utils.config import load_yaml_file
 
 # Load configuration
 config = load_yaml_file('config.yaml')
