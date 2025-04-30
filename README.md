@@ -40,6 +40,12 @@ include mne for eeg processing, pandas to handle dataframes, neurokit2 and edge-
 
 ## Requirements
 - Python 3.8+
+- QT
+  - on ubuntu see the following link: https://web.stanford.edu/dept/cs_edu/resources/qt/install-linux
+  - on arch install using pacman: `sudo pacman -S qtcreator`
+- Tk
+  - on ubuntu install using apt: `sudo apt-get -y install tk`
+  - on arch install using pacman: `sudo pacman -S tk`
 
 ## Installation
 
@@ -124,7 +130,7 @@ mv PN00-1.edf example/eeg/PN001-original.edf
 
 This will also rename the file so that it is properly handled by the config (touched upon in step 7)
 
-### 4. Preprocessing the file (optional)
+### 4. Preprocessing the file
 
 There are multiple possible approaches for Preprocessing the eeg in the folder *eeg_reading_and_preprocessing*.
 1. Navigate to the folder and use the ipython notebook for an interactive experience
@@ -135,12 +141,6 @@ python3 eeg_reading_and_preprocessing/preprocess_and_inspect.py
 3. Use the *preprocess_fast.py* to do the bare minimum preprocessing to execute the last step without any visual or textual outputs
 ```
 python3 eeg_reading_and_preprocessing/preprocess_fast.py
-```
-For the visualization users may experience problems as it relies on qt being available on the system.
-When working on ubuntu check out the following resource for help: https://web.stanford.edu/dept/cs_edu/resources/qt/install-linux \
-When working with arch linux simply install the following package:
-```
-pacman -S qtcreator
 ```
 
 ### 5. Inspecting the configuration file
