@@ -3,6 +3,7 @@
 *.csv
 *.fif
 *.log
+*.sqlite
 Artificial_signal_tests/csv
 
 # Byte-compiled / optimized / DLL files
