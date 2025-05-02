@@ -28,7 +28,7 @@ experiments:
       #strictly less than duration or will be set to 0 within computation
       overlap: 5
       #epochs are done from start to stop with only full intervals beeing calculated, no stop time means end of file/annotation
-      stop_time: 360
+      stop_time: 120
     # the name of the output file, has to end with metrics.csv for using the processing notebooks
     outfile_ending: 'metrics.csv'
     # if files which allready exist should be recomputed
@@ -36,6 +36,7 @@ experiments:
     # different metrics can be applied to the data which are stored in eeganalyzer/core/metrics.py. The name of a viable config needs to be given
     # The user can add his own metric sets to the file as well
     metric_set_name: final-0
+    metric_path: /home/soenkevl/Documents/EEGAnalyzer/example/metrics.py
     # definition of the different runs for this experiment where montage and filtering can be adapted
     runs:
       -

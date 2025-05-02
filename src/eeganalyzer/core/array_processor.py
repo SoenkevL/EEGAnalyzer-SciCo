@@ -19,8 +19,8 @@ This module provides the Array_processor class for processing array data.
 import numpy as np
 import pandas as pd
 from typing import List, Dict, Tuple, Optional, Any, Union
+import os, sys
 
-from eeganalyzer.core.metrics import select_metrics
 from eeganalyzer.utils.buttler import Buttler
 
 
@@ -56,19 +56,69 @@ class Array_processor:
             Divides data into epochs and calculates metrics for each, returning results in a DataFrame.
     """
 
-    def __init__(self, data: Optional[pd.DataFrame] = None, metric_name: Optional[str] = None, 
+    def __init__(self, data: Optional[pd.DataFrame] = None, metric_name: Optional[str] = None, metric_path: Optional[str] = None,
                  sfreq: Optional[float] = None, axis_of_time: int = 0):
             self.data: Optional[pd.DataFrame] = None
             self.metric_name: Optional[str] = None
+            self.metric_path: Optional[str] = None
             self.sfreq: Optional[float] = None
             self.axis_of_time: int = 0
             self.buttler: Buttler = Buttler()
             
             self.set_data(data)
             self.set_metric_name(metric_name)
+            self.set_metric_path(metric_path)
+            self.select_metrics = self.import_metrics()
             self.set_sfreq(sfreq)
             self.set_axis_of_time(axis_of_time)
-        
+
+    def import_metrics(self):
+        """
+        Dynamically imports the select_metrics function from a specified path.
+
+        Returns:
+            callable: The select_metrics function from the specified metrics file.
+
+        Raises:
+            ImportError: If the function cannot be imported from the specified path.
+        """
+        if not self.metric_path:
+            raise ValueError("Metric path is not set. Use set_metric_path() first.")
+
+        try:
+            # Get the directory and filename
+            dir_path = os.path.dirname(self.metric_path)
+            file_name = os.path.basename(self.metric_path)
+
+            # If it's a .py file, remove the extension
+            if file_name.endswith('.py'):
+                module_name = file_name[:-3]
+            else:
+                module_name = file_name
+
+            # Add the directory to sys.path if it's not already there
+            if dir_path not in sys.path:
+                sys.path.insert(1, dir_path)
+
+            # Dynamic import
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(module_name, self.metric_path)
+            if not spec:
+                raise ImportError(f"Could not load spec for module at {self.metric_path}")
+
+            metrics_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(metrics_module)
+
+            # Get the select_metrics function
+            if not hasattr(metrics_module, 'select_metrics'):
+                raise AttributeError(f"The metrics module at {self.metric_path} does not contain a select_metrics function")
+
+            return metrics_module.select_metrics
+
+        except Exception as e:
+            raise ImportError(f"Failed to import metrics from {self.metric_path}: {str(e)}")
+
+
     def set_sfreq(self, sfreq: float) -> None:
         """
         Sets the sampling frequency (sfreq) attribute.
@@ -116,6 +166,19 @@ class Array_processor:
             raise ValueError("Metric name must be a non-empty string.")
         self.metric_name = metric_name
 
+    def set_metric_path(self, metric_path: str) -> None:
+        """
+        Sets the name of the metric to calculate.
+
+        Parameters:
+            metric_path (str): Name of the metric.
+        """
+        if not isinstance(metric_path, str) or not metric_path.strip():
+            raise ValueError("Metric path must be a non-empty string.")
+        if not os.path.exists(metric_path):
+            raise ValueError("Metric path does not exist.")
+        self.metric_path = metric_path
+         
     def transpose_data(self) -> None:
         """
         Transposes the data based on the axis of time and updates the axis_of_time attribute.
@@ -151,7 +214,7 @@ class Array_processor:
             raise ValueError("Metric set name must be a non-empty string.")
 
         try:
-            metrics_functions, metrics_name_list, kwargs_list = select_metrics(name)
+            metrics_functions, metrics_name_list, kwargs_list = self.select_metrics(name)
 
             if not isinstance(metrics_functions, list) or not isinstance(metrics_name_list, list) or not isinstance(
                     kwargs_list, list):

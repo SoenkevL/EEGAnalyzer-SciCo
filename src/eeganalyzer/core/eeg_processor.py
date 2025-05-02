@@ -248,7 +248,7 @@ class EEG_processor:
         """
         return eeg_dataframe.columns[1:]
 
-    def calc_metric_from_annotations(self, metric_set_name, ep_dur: int, ep_start: int, ep_stop: int,
+    def calc_metric_from_annotations(self, metric_set_name, metric_path, ep_dur: int, ep_start: int, ep_stop: int,
                                      overlap: int = 0, relevant_annot_labels: list = None) -> pd.DataFrame:
 
         """
@@ -276,7 +276,8 @@ class EEG_processor:
             data=data[eeg_cols],
             sfreq=self.sfreq,
             axis_of_time=0,
-            metric_name=metric_set_name
+            metric_name=metric_set_name,
+            metric_path=metric_path,
         )
         ep_start = ep_start or 0  # Default ep_start to 0 if None
         raw_annots = self.raw.annotations
@@ -319,7 +320,7 @@ class EEG_processor:
 
         return full_annot_frame
 
-    def calc_metric_from_whole_file(self, metric_set_name, ep_dur: int, ep_start: int, ep_stop: int,
+    def calc_metric_from_whole_file(self, metric_set_name, metric_path, ep_dur: int, ep_start: int, ep_stop: int,
                                     overlap: int = 0, task_label: str = None) -> pd.DataFrame:
 
         """
@@ -351,7 +352,8 @@ class EEG_processor:
             data=data.loc[:,eeg_cols],
             sfreq=self.sfreq,
             axis_of_time=0,
-            metric_name=metric_set_name
+            metric_name=metric_set_name,
+            metric_path=metric_path,
         )
 
         # Compute metrics using the epoching function
@@ -362,7 +364,7 @@ class EEG_processor:
         # Return the resulting DataFrame containing computed metrics
         return result_frame
 
-    def compute_metrics_fif(self, metric_name, relevant_annot_labels: list = None,
+    def compute_metrics_fif(self, metric_name, metric_path, relevant_annot_labels: list = None,
                             ep_dur=None, ep_start=None, ep_stop=None, overlap: int = 0,
                             task_label=None) -> pd.DataFrame:
 
@@ -400,17 +402,17 @@ class EEG_processor:
             if relevant_annot_labels[0] == 'all':
                 # Use all annotations if label 'all' is provided
                 full_results_frame = self.calc_metric_from_annotations(
-                    metric_name, ep_dur, ep_start, ep_stop, overlap, None
+                    metric_name, metric_path, ep_dur, ep_start, ep_stop, overlap, None
                 )
             else:
                 # Use only the annotations specified in relevant_annot_labels
                 full_results_frame = self.calc_metric_from_annotations(
-                    metric_name, ep_dur, ep_start, ep_stop, overlap, relevant_annot_labels
+                    metric_name, metric_path, ep_dur, ep_start, ep_stop, overlap, relevant_annot_labels
                 )
         else:
             # If no annotation labels are provided, process the entire file
             full_results_frame = self.calc_metric_from_whole_file(
-                metric_name, ep_dur, ep_start, ep_stop, overlap, task_label
+                metric_name, metric_path, ep_dur, ep_start, ep_stop, overlap, task_label
             )
 
         return full_results_frame
@@ -420,7 +422,7 @@ class EEG_processor:
     ######################################## high level functions ##########################################################
     ########################################################################################################################
 
-    def compute_metrics(self, metric_set_name: str, annot: list, outfile: str, lfreq: int, hfreq: int,
+    def compute_metrics(self, metric_set_name: str, metric_path, annot: list, outfile: str, lfreq: int, hfreq: int,
                         montage: str, ep_start: int = None, ep_stop: int = None, ep_dur: int = None, overlap: int = 0,
                         resamp_freq=None, repeat_measurement: bool = False) -> str:
         """
@@ -493,7 +495,7 @@ class EEG_processor:
 
             # Calculate the metrics
             full_results_frame = self.compute_metrics_fif(
-                metric_set_name, annot, ep_dur, ep_start, ep_stop, overlap, task_label
+                metric_set_name, metric_path, annot, ep_dur, ep_start, ep_stop, overlap, task_label
             )
 
             # Save dataframe to csv

@@ -157,7 +157,7 @@ def get_files_dataframe(bids_folder: str, infile_ending: str, outfile_ending: st
     return df
 
 
-def process_file(row: pd.Series, metric_set_name: str, annotations: List[str], lfreq: Optional[Union[int, float]], 
+def process_file(row: pd.Series, metric_set_name: str, metric_path: str, annotations: List[str], lfreq: Optional[Union[int, float]],
                  hfreq: Optional[Union[int, float]], montage: str, ep_start: Optional[int], ep_stop: Optional[int], 
                  ep_dur: Optional[int], ep_overlap: int, sfreq: Union[int, float], recompute: bool) -> None:
     """
@@ -190,6 +190,7 @@ def process_file(row: pd.Series, metric_set_name: str, annotations: List[str], l
             eeg_processor = EEG_processor(file_path)
             result = eeg_processor.compute_metrics(
                 metric_set_name,
+                metric_path,
                 annotations,
                 outpath,
                 lfreq,
@@ -206,6 +207,7 @@ def process_file(row: pd.Series, metric_set_name: str, annotations: List[str], l
             csv_processor = CSVProcessor(file_path, sfreq=sfreq)
             result = csv_processor.compute_metrics(
                 metric_set_name,
+                metric_path,
                 outpath,
                 lfreq,
                 hfreq,
@@ -257,6 +259,7 @@ def process_experiment(config: Dict[str, Any], log_file: Optional[str], num_proc
                 epoching['overlap'],
             )
             metric_set_name = experiment['metric_set_name']
+            metric_path = experiment['metric_path']
 
             # add or update dataset in sqlite database
             dataset_id = add_or_update_dataset(session, experiment)
@@ -289,6 +292,7 @@ def process_experiment(config: Dict[str, Any], log_file: Optional[str], num_proc
                 files_df.apply_parallel(
                     process_file,
                     metric_set_name=metric_set_name,
+                    metric_path=metric_path,
                     annotations=annotations,
                     lfreq=lfreq,
                     hfreq=hfreq,

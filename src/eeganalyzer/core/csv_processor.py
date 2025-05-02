@@ -141,13 +141,14 @@ class CSVProcessor:
             print(f"Error loading CSV file: {e}")
             return None, None
 
-    def compute_metrics(self, metric_set_name: str, outfile: str, l_freq=None, h_freq=None,
+    def compute_metrics(self, metric_set_name: str, metric_path: str, outfile: str, l_freq=None, h_freq=None,
                         ep_start: int = None, ep_stop: int = None, ep_dur: int = None, overlap: int = 0,
                         resamp_freq=None, repeat_measurement: bool = False) -> str:
         """
         Compute metrics for CSV data.
 
         Args:
+            metric_path (str): Path to the metric file.
             metric_set_name (str): Name of the metric set to calculate.
             outfile (str): File path where the resulting metrics (CSV) will be saved.
             l_freq (float, optional): Lower frequency cutoff. Defaults to None.
@@ -184,7 +185,8 @@ class CSVProcessor:
                 data=self.data,  # Processed data
                 sfreq=self.sfreq,
                 axis_of_time=0,
-                metric_name=metric_set_name
+                metric_name=metric_set_name,
+                metric_path=metric_path,
             )
 
             # Extract default or provided epoching parameters
