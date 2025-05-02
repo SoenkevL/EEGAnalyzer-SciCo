@@ -12,7 +12,7 @@ experiments:
     # root bids folder, should end in BIDS but not necessary, the folder (and subfolders) will be scanned for fif files
     bids_folder: ./example/eeg
     # input file type, the type of files that should be treated as valid input files
-    input_file_ending: 'raw.fif'
+    input_file_ending: '.edf'
     # annotations for which metrics should be calculated. Need to be given as a list with the '-' infront of the option
     # - Leaving it empty calcs metrics for the whole file
     # - giving the keyword 'all' calculates it for all annotations in the file (nothing computed if there ar eno annotations)

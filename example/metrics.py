@@ -14,6 +14,12 @@ Copyright (C) <2025>  <Soenke van Loh>
 Metrics for EEG analysis.
 
 This module provides functions for selecting and calculating metrics for EEG analysis.
+This particular example was used during my Thesis (https://essay.utwente.nl/104520/).
+It showcases how metrics can be added for the analysis.
+The most important thing is that this file has a select_metrics function that returns the metrics functions, names and
+kwargs for a given metric set. The metrics functions are then used in the analysis.py file to calculate the metrics.
+
+Please feel free to use this file as a template for your own metrics.
 """
 
 import edgeofpy as eop
