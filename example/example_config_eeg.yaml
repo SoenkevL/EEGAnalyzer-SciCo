@@ -13,6 +13,11 @@ experiments:
     bids_folder: ./example/eeg
     # input file type, the type of files that should be treated as valid input files
     input_file_ending: '.edf'
+    # Metrics are specified in a metrics.py file
+    # Path where the metrics.py file can be found
+    metric_path: ./example/metrics.py
+    # The name of the metric_set which should be used for computation
+    metric_set_name: final-0
     # annotations for which metrics should be calculated. Need to be given as a list with the '-' infront of the option
     # - Leaving it empty calcs metrics for the whole file
     # - giving the keyword 'all' calculates it for all annotations in the file (nothing computed if there ar eno annotations)
@@ -33,10 +38,6 @@ experiments:
     outfile_ending: 'metrics.csv'
     # if files which allready exist should be recomputed
     recompute: True
-    # different metrics can be applied to the data which are stored in eeganalyzer/core/metrics.py. The name of a viable config needs to be given
-    # The user can add his own metric sets to the file as well
-    metric_set_name: final-0
-    metric_path: /home/soenkevl/Documents/EEGAnalyzer/example/metrics.py
     # definition of the different runs for this experiment where montage and filtering can be adapted
     runs:
       -

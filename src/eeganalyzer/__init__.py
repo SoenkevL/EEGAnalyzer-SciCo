@@ -6,4 +6,4 @@ chaotic dynamics, complexity assessment, fractal properties, and entropy.
 It also includes a GUI for visualizing metrics computed from EEG data.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
