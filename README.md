@@ -1,4 +1,4 @@
-# EEGAnalyzer
+# EEGAnalyzer - Scientific Coworker
 
 A comprehensive tool for analyzing EEG data with a focus on customizable metric analysis. Originally designed to analyze the
 chaotic dynamics, complexity assessment, fractal-properties, and entropy of EEG signals for my Masters (https://essay.utwente.nl/104520/).  
@@ -57,9 +57,9 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-### From PyPiTest
+### From PyPi
 ```bash
-python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple eeganalyzer
+pip install eeganalyzer-scico
 ```
 
 ### From source
