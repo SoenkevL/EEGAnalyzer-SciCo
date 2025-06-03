@@ -10,16 +10,17 @@ However, the most important thing is that any library that you want to work with
 
 - **Analysis Capabilities**:
   - Custom python functions
-  - Chaotic dynamics analysis
-  - Complexity metrics evaluation
-  - Fractal property detection
-  - Entropy calculation methods
+  - Example includes:
+    - Chaotic dynamics analysis
+    - Complexity metrics evaluation
+    - Fractal property detection
+    - Entropy calculation methods
 
 - **Modular Architecture**:
   - An example on GitHub showing the whole process you need to analyze your eegs. 
   - Extensible design for easily adding custom functions as metrics
   - Supports 1D and 2D timeseries data
-  - Primarily written for EEG analysis while also providing functionality for csv data
+  - Primarily written for EEG analysis while also providing functionality for other csv data in timeseries format.
 
 - **Configuration**:
   - Adjustable parameters for analysis focused on timeseries.
@@ -104,10 +105,10 @@ config = load_yaml_file('config.yaml')
 process_experiment(config, 'results/analysis.log')
 ```
 
-## Installation with example (Development)
+## Example Analysis
 ### 1. Follow the installation instructions
 Make sure you have installed the package as described above. If you decide you install the package via pip and not from
- source, please make sure you get the folder example from the GitHub and add it to your current project.
+ source, please make sure you still clone the GitHub to have all example and preprocessing files at hand.
 
 ### 2. Prepare example data directory structure
 
@@ -151,7 +152,7 @@ It is recommended, however, to preprocess the file manually beforehand to see wh
 
 Processing the eeg exactly how the user needs it is mainly defined by two files.
 1. The config.yaml file: Here we set processing parameters like filters, montages, epoches, inclusion criteria, etc.
-2. The metrics.py file: Here we set the metrics and import the libraries that we want to compute on our files.
+2. The metrics.py file: Here we set the metrics and import the libraries that we want to compute on our files.  
 Both files have example versions in the example folder on our GitHub.
 
 ### 6. Run the main script with configuration
