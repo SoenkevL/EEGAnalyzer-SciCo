@@ -247,7 +247,7 @@ class EEGPreprocessor:
         else:
             print("No active plotting processes")
 
-    def _plot_raw_data_worker(self, raw_data, duration, n_channels, start, title, bgcolor):
+    def _plot_eeg_data_worker(self, raw_data, duration, n_channels, start, title, bgcolor):
         """Worker function for plotting raw data in a separate process."""
         raw_data.plot(
             duration=duration,
@@ -260,9 +260,10 @@ class EEGPreprocessor:
             bgcolor=bgcolor
         )
 
-    def inspect_raw_data(self, duration: float = 20.0, n_channels: int = 20,
+    def plot_eeg_data(self, duration: float = 20.0, n_channels: int = 20,
                         start: float = 0.0, block: bool = False, 
-                        use_multiprocessing: bool = False, 
+                        use_multiprocessing: bool = False,
+                        title: Optional[str] = None,
                         process_name: Optional[str] = None) -> Optional[mp.Process]:
         """
         Visually inspect raw EEG data.
@@ -279,13 +280,17 @@ class EEGPreprocessor:
             Whether to block execution until plot is closed
         use_multiprocessing : bool, default=False
             Whether to open plot in a separate process
+        title: str, optional, default=None
+            The title of the plot
         process_name : str, optional
             Name for the process (auto-generated if not provided)
+
             
         Returns
         -------
         mp.Process or None
             The process object if use_multiprocessing=True, None otherwise
+
         """
         try:
             if use_multiprocessing:
@@ -296,8 +301,8 @@ class EEGPreprocessor:
                 raw_copy = self.raw.copy()
                 
                 process = self._create_plot_process(
-                    target_func=self._plot_raw_data_worker,
-                    args=(raw_copy, duration, n_channels, start, 'Raw EEG Data Inspection', 'white'),
+                    target_func=self._plot_eeg_data_worker,
+                    args=(raw_copy, duration, n_channels, start, title, 'white'),
                     process_name=process_name
                 )
                 
@@ -312,7 +317,7 @@ class EEGPreprocessor:
                     remove_dc=False,
                     block=block,
                     show_options=True,
-                    title='Raw EEG Data Inspection',
+                    title=title,
                     bgcolor='white'
                 )
                 self.preprocessing_history.append(f"Inspected raw data (duration={duration}s)")
@@ -756,9 +761,10 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     
     # Inspect raw data with multiprocessing
     print("\n1. Inspecting raw data...")
-    raw_plot_process = preprocessor.inspect_raw_data(
+    raw_plot_process = preprocessor.plot_eeg_data(
         duration=20, 
-        use_multiprocessing=True, 
+        use_multiprocessing=True,
+        title='unprocessed raw eeg',
         process_name="initial_raw_inspection"
     )
     
@@ -775,7 +781,7 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     
     # Show filtered data
     print("\n4. Inspecting filtered data...")
-    filtered_plot_process = preprocessor.inspect_raw_data(
+    filtered_plot_process = preprocessor.plot_eeg_data(
         duration=20, 
         use_multiprocessing=True, 
         process_name="filtered_raw_inspection"
@@ -788,14 +794,18 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     # Detect artifacts automatically
     print("\n6. Detecting artifacts...")
     artifacts = preprocessor.detect_artifacts_automatic()
-    
+
+    # Set montage
+    print("\n7. Setting electrode montage...")
+    preprocessor.set_montage('standard_1020')
+
     # Fit ICA
-    print("\n7. Fitting ICA...")
+    print("\n8. Fitting ICA...")
     preprocessor.fit_ica(n_components=15, crop_duration=60)
-    
+
     # Plot ICA components with multiprocessing
     if preprocessor.ica is not None:
-        print("\n8. Plotting ICA components...")
+        print("\n9. Plotting ICA components...")
         ica_comp_process = preprocessor.plot_ica_components(
             use_multiprocessing=True,
             process_name="ica_components"
@@ -807,10 +817,7 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
             process_name="ica_sources"
         )
     
-    # Set montage
-    print("\n9. Setting electrode montage...")
-    preprocessor.set_montage('standard_1020')
-    
+
     # List active plots
     print("\n10. Listing active plots...")
     preprocessor.list_active_plots()
