@@ -310,6 +310,9 @@ class EEGPreprocessor:
                 self.preprocessing_history.append(f"Inspected raw data (MP, duration={duration}s)")
                 return process
             else:
+
+                current_backend = plt.get_backend()
+
                 self.raw.plot(
                     duration=duration,
                     n_channels=n_channels,
@@ -320,6 +323,17 @@ class EEGPreprocessor:
                     title=title,
                     bgcolor='white'
                 )
+
+                # Clean up after blocking plot
+                if block:
+                    plt.close('all')  # Close all matplotlib figures
+                    # Reset the backend if needed
+                    if plt.get_backend() != current_backend:
+                        plt.switch_backend(current_backend)
+                    # Force garbage collection
+                    import gc
+                    gc.collect()
+
                 self.preprocessing_history.append(f"Inspected raw data (duration={duration}s)")
                 return None
                 
@@ -762,8 +776,9 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     # Inspect raw data with multiprocessing
     print("\n1. Inspecting raw data...")
     raw_plot_process = preprocessor.plot_eeg_data(
-        duration=20, 
-        use_multiprocessing=True,
+        duration=20,
+        # use_multiprocessing=True,
+        block=True,
         title='unprocessed raw eeg',
         process_name="initial_raw_inspection"
     )
@@ -783,13 +798,15 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     print("\n4. Inspecting filtered data...")
     filtered_plot_process = preprocessor.plot_eeg_data(
         duration=20, 
-        use_multiprocessing=True, 
+        # use_multiprocessing=True,
+        block=True,
+        title='eeg after filtering',
         process_name="filtered_raw_inspection"
     )
     
     # Resample data
     print("\n5. Resampling data...")
-    preprocessor.resample_data(sfreq=100.0)
+    preprocessor.resample_data(sfreq=256.0)
     
     # Detect artifacts automatically
     print("\n6. Detecting artifacts...")
@@ -844,39 +861,7 @@ if __name__ == "__main__":
     
     if os.path.exists(sample_file):
         preprocessor = example_preprocessing_pipeline(sample_file, output_file)
-        
-        # Example of using multiprocessing features
-        # print("\n" + "="*60)
-        # print("MULTIPROCESSING FEATURES DEMONSTRATION")
-        # print("="*60)
-        #
-        # # Open multiple plots simultaneously
-        # print("\nOpening multiple plots in separate processes...")
-        #
-        # # Raw data comparison at different time points
-        # preprocessor.inspect_raw_data(
-        #     start=0, duration=10,
-        #     use_multiprocessing=True,
-        #     process_name="raw_start"
-        # )
-        #
-        # preprocessor.inspect_raw_data(
-        #     start=30, duration=10,
-        #     use_multiprocessing=True,
-        #     process_name="raw_middle"
-        # )
-        #
-        # # PSD comparison
-        # preprocessor.plot_power_spectral_density()
-        #
-        # # Show active processes
-        # print("\nActive plotting processes:")
-        # preprocessor.list_active_plots()
-        #
-        # print("\nAll plots are now open simultaneously!")
-        # print("You can interact with each plot independently.")
-        # print("Run preprocessor.close_all_plots() when done.")
-        
+
     else:
         print(f"Sample file not found: {sample_file}")
         print("Please update the filepath or provide your own EEG file.")
