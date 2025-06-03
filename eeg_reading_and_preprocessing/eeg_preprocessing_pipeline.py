@@ -322,19 +322,8 @@ class EEGPreprocessor:
             print(f"Error plotting raw data: {str(e)}")
             return None
 
-    def _plot_psd_worker(self, raw_data, picks, fmin, fmax):
-        """Worker function for plotting PSD in a separate process."""
-        raw_data.plot_psd(
-            picks=picks,
-            fmin=fmin,
-            fmax=fmax,
-            show=True
-        )
-
     def plot_power_spectral_density(self, picks: Optional[Union[str, List[str]]] = None,
-                                   fmin: float = 0.5, fmax: float = 50.0,
-                                   use_multiprocessing: bool = False,
-                                   process_name: Optional[str] = None) -> Optional[mp.Process]:
+                                   fmin: float = 0.5, fmax: float = 50.0) -> Optional[mp.Process]:
         """
         Plot power spectral density of the data.
         
@@ -346,11 +335,6 @@ class EEGPreprocessor:
             Minimum frequency to display
         fmax : float, default=50.0
             Maximum frequency to display
-        use_multiprocessing : bool, default=False
-            Whether to open plot in a separate process
-        process_name : str, optional
-            Name for the process (auto-generated if not provided)
-            
         Returns
         -------
         mp.Process or None
@@ -362,31 +346,14 @@ class EEGPreprocessor:
                 picks = 'all'
         
         try:
-            if use_multiprocessing:
-                if process_name is None:
-                    process_name = f"psd_plot_{len(self.active_processes)}"
-                
-                # Create a copy of raw data for the process
-                raw_copy = self.raw.copy()
-                
-                process = self._create_plot_process(
-                    target_func=self._plot_psd_worker,
-                    args=(raw_copy, picks, fmin, fmax),
-                    process_name=process_name
-                )
-                
-                print(f"Opened PSD plot in separate process: {process_name}")
-                self.preprocessing_history.append(f"Plotted PSD (MP, fmin={fmin}, fmax={fmax})")
-                return process
-            else:
-                self.raw.plot_psd(
-                    picks=picks,
-                    fmin=fmin,
-                    fmax=fmax,
-                    show=True
-                )
-                self.preprocessing_history.append(f"Plotted PSD (fmin={fmin}, fmax={fmax})")
-                return None
+            self.raw.plot_psd(
+                picks=picks,
+                fmin=fmin,
+                fmax=fmax,
+                show=True
+            )
+            self.preprocessing_history.append(f"Plotted PSD (fmin={fmin}, fmax={fmax})")
+            return None
                 
         except Exception as e:
             print(f"Error plotting PSD: {str(e)}")
