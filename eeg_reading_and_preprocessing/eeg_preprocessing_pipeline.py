@@ -529,19 +529,20 @@ class EEGPreprocessor:
             print(f"Error fitting ICA: {str(e)}")
             self.ica = None
 
-    def _plot_ica_components_worker(self, ica, components):
+    def _plot_ica_components_worker(self, ica, components, title=None):
         """Worker function for plotting ICA components in a separate process."""
         if components is not None:
-            ica.plot_components(picks=components, show=True)
+            ica.plot_components(picks=components, show=True, title=title)
         else:
-            ica.plot_components(show=True)
+            ica.plot_components(show=True, title=title)
 
     def plot_ica_components(self, components: Optional[List[int]] = None,
                            use_multiprocessing: bool = False,
+                           title: Optional[str] = None,
                            process_name: Optional[str] = None) -> Optional[mp.Process]:
         """
         Plot ICA components for inspection.
-        
+
         Parameters
         ----------
         components : list, optional
@@ -567,7 +568,7 @@ class EEGPreprocessor:
                 
                 process = self._create_plot_process(
                     target_func=self._plot_ica_components_worker,
-                    args=(self.ica, components),
+                    args=(self.ica, components, title),
                     process_name=process_name
                 )
                 
@@ -575,9 +576,9 @@ class EEGPreprocessor:
                 return process
             else:
                 if components is not None:
-                    self.ica.plot_components(picks=components, show=True)
+                    self.ica.plot_components(picks=components, show=True, title=title)
                 else:
-                    self.ica.plot_components(show=True)
+                    self.ica.plot_components(show=True, title=title)
                 return None
                 
         except Exception as e:
@@ -866,8 +867,8 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
 
 if __name__ == "__main__":
     # Example usage demonstrating multiprocessing capabilities
-    sample_file = "example/eeg/PN001-original.edf"
-    output_file = "example/eeg/PN001-preprocessed.fif"
+    sample_file = "../example/eeg/PN001-original.edf"
+    output_file = "../example/eeg/PN001-preprocessed.fif"
     
     if os.path.exists(sample_file):
         preprocessor = example_preprocessing_pipeline(sample_file, output_file)
