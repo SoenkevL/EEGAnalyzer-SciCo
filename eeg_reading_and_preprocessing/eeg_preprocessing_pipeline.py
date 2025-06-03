@@ -767,8 +767,6 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     psd_plot_process = preprocessor.plot_power_spectral_density(
         fmin=0.5, 
         fmax=50,
-        use_multiprocessing=True,
-        process_name="initial_psd"
     )
     
     # Apply filtering
@@ -841,39 +839,36 @@ if __name__ == "__main__":
         preprocessor = example_preprocessing_pipeline(sample_file, output_file)
         
         # Example of using multiprocessing features
-        print("\n" + "="*60)
-        print("MULTIPROCESSING FEATURES DEMONSTRATION")
-        print("="*60)
-        
-        # Open multiple plots simultaneously
-        print("\nOpening multiple plots in separate processes...")
-        
-        # Raw data comparison at different time points
-        preprocessor.inspect_raw_data(
-            start=0, duration=10, 
-            use_multiprocessing=True, 
-            process_name="raw_start"
-        )
-        
-        preprocessor.inspect_raw_data(
-            start=30, duration=10, 
-            use_multiprocessing=True, 
-            process_name="raw_middle"
-        )
-        
-        # PSD comparison
-        preprocessor.plot_power_spectral_density(
-            use_multiprocessing=True,
-            process_name="final_psd"
-        )
-        
-        # Show active processes
-        print("\nActive plotting processes:")
-        preprocessor.list_active_plots()
-        
-        print("\nAll plots are now open simultaneously!")
-        print("You can interact with each plot independently.")
-        print("Run preprocessor.close_all_plots() when done.")
+        # print("\n" + "="*60)
+        # print("MULTIPROCESSING FEATURES DEMONSTRATION")
+        # print("="*60)
+        #
+        # # Open multiple plots simultaneously
+        # print("\nOpening multiple plots in separate processes...")
+        #
+        # # Raw data comparison at different time points
+        # preprocessor.inspect_raw_data(
+        #     start=0, duration=10,
+        #     use_multiprocessing=True,
+        #     process_name="raw_start"
+        # )
+        #
+        # preprocessor.inspect_raw_data(
+        #     start=30, duration=10,
+        #     use_multiprocessing=True,
+        #     process_name="raw_middle"
+        # )
+        #
+        # # PSD comparison
+        # preprocessor.plot_power_spectral_density()
+        #
+        # # Show active processes
+        # print("\nActive plotting processes:")
+        # preprocessor.list_active_plots()
+        #
+        # print("\nAll plots are now open simultaneously!")
+        # print("You can interact with each plot independently.")
+        # print("Run preprocessor.close_all_plots() when done.")
         
     else:
         print(f"Sample file not found: {sample_file}")
