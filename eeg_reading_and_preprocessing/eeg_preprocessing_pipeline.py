@@ -91,50 +91,41 @@ class EEGPreprocessor:
         """
         # Define regex patterns for different channel types
         patterns = {
-            'EEG': [
-                r'^(EEG|E)\s*[A-Z]*[0-9]+',  # EEG channels
-                r'^[A-Z]+[0-9]+$',           # Standard electrode names
-                r'^(Fp|F|C|P|O|T)[0-9]+$',   # 10-20 system
-                r'^(Fz|Cz|Pz|Oz|Fpz)$',     # Midline electrodes
-                r'^A[12]$',                   # Reference electrodes
-            ],
-            'MEG': [
-                r'MEG\s*[0-9]+',             # MEG channels
-                r'MAG\s*[0-9]+',             # Magnetometers
-                r'GRAD\s*[0-9]+',            # Gradiometers
-            ],
             'EOG': [
-                r'EOG|EYE',                   # Eye movement channels
-                r'(VEOG|HEOG)',              # Vertical/Horizontal EOG
-                r'(Left|Right).*Eye',        # Eye tracking
+                r'(?!.*EEG)(EOG|EYE)',  # Eye movement channels (exclude if contains EEG)
+                r'(?!.*EEG)[VH]EOG',  # Vertical/Horizontal EOG (exclude if contains EEG)
+                r'(?!.*EEG)Eye',  # Any eye-related channel (exclude if contains EEG)
             ],
             'ECG': [
-                r'(ECG|EKG)',                # Heart channels
-                r'CARDIAC',
-                r'HEART',
+                r'(?!.*EEG)(ECG|EKG|CARDIAC|HEART)',  # Heart channels (exclude if contains EEG)
             ],
             'EMG': [
-                r'EMG',                      # Muscle activity
-                r'MUSCLE',
+                r'(?!.*EEG)(EMG|MUSCLE)',  # Muscle activity (exclude if contains EEG)
             ],
             'SPO2': [
-                r'SPO2|SAT',                 # Oxygen saturation
-                r'PULSE.*OX',
+                r'(?!.*EEG)(SPO2|SAT|PULSE)',  # Oxygen saturation (exclude if contains EEG)
             ],
             'RESP': [
-                r'RESP|BREATH',              # Respiration
-                r'THORAX|CHEST',
+                r'(?!.*EEG)(RESP|BREATH|THORAX|CHEST)',  # Respiration (exclude if contains EEG)
             ],
             'TRIGGER': [
-                r'(TRIG|STI)[0-9]*',         # Trigger channels
-                r'(EVENT|MARKER)',           # Event markers
-                r'Status',                   # Status channel
+                r'(?!.*EEG)(TRIG|STI|EVENT|MARKER|Status)',  # Trigger channels (exclude if contains EEG)
+            ],
+            'MEG': [
+                r'(?!.*EEG)MEG\d+',  # MEG channels (exclude if contains EEG)
+                r'(?!.*EEG)MAG\d+',  # Magnetometers (exclude if contains EEG)
+                r'(?!.*EEG)GRAD\d+',  # Gradiometers (exclude if contains EEG)
             ],
             'MISC': [
-                r'MISC|OTHER|AUX',           # Miscellaneous
-            ]
+                r'(?!.*EEG)(MISC|OTHER|AUX)',  # Miscellaneous (exclude if contains EEG)
+            ],
+            'EEG': [
+                r'(EEG|E)\d+',  # EEG channels with numbers
+                r'[A-Za-z]+\d+',  # Any letters followed by numbers (covers most electrode names)
+                r'[A-Za-z]*z\d*',  # Midline electrodes ending in 'z' (with optional numbers)
+            ],
         }
-        
+
         self.channel_categories = {category: [] for category in patterns.keys()}
         unclassified = []
         
@@ -377,6 +368,8 @@ class EEGPreprocessor:
         """
         if picks is None:
             picks = self.channel_categories.get('EEG', [])
+            picks.append(self.channel_categories.get('EKG', []))
+            picks.append(self.channel_categories.get('EOG', []))
             if not picks:
                 picks = 'eeg'
         
