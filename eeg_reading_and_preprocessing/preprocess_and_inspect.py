@@ -18,7 +18,7 @@ mne.set_config('MNE_BROWSER_BACKEND', 'qt')
 mne.set_log_level(verbose='WARNING')
 
 #%% Load the eeg data
-sampleSignalPath = 'example/eeg/PN001-original.edf' #'/path/to/edf/sample.edf'
+sampleSignalPath = '../example/eeg/PN001-original.edf' #'/path/to/edf/sample.edf'
 out_path = sampleSignalPath.replace('original.edf', 'preprocessed-raw.fif')
 raw = mne.io.read_raw(sampleSignalPath, preload=True)
 raw = raw.pick_types(eeg=True) #focus on eeg channels (includes all channels marked as eeg not only electrode channels)

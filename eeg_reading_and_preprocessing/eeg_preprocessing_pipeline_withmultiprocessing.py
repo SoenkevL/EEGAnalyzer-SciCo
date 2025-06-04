@@ -11,9 +11,13 @@ Date: 2025-06-03
 
 import os
 import re
-from typing import Dict, List, Optional, Tuple, Union, Any
+import warnings
+from typing import Dict, List, Optional, Tuple, Union
+import multiprocessing as mp
 
 import mne
+import numpy as np
+import matplotlib.pyplot as plt
 from mne.preprocessing import ICA, create_ecg_epochs, create_eog_epochs
 
 # Configure MNE settings
@@ -45,7 +49,8 @@ class EEGPreprocessor:
         self.ica = None
         self.channel_categories = {}
         self.preprocessing_history = []
-
+        self.active_processes = {}  # Track active plotting processes
+        
         # Load the raw data
         self.load_data(preload=preload)
         
@@ -179,11 +184,87 @@ class EEGPreprocessor:
                     print(f"  {', '.join(channels[:5])} ... {', '.join(channels[-2:])}")
         
         print(f"\nBad channels: {self.raw.info['bads']}")
+    
+    def _create_plot_process(self, target_func, args, process_name: str) -> mp.Process:
+        """
+        Create a multiprocessing plot that can run independently.
+        
+        Parameters
+        ----------
+        target_func : callable
+            Function to run in the process
+        args : tuple
+            Arguments for the target function
+        process_name : str
+            Name identifier for the process
+            
+        Returns
+        -------
+        mp.Process
+            The created process
+        """
+        # Clean up any finished processes
+        self._cleanup_finished_processes()
+        
+        # Create and start new process
+        process = mp.Process(target=target_func, args=args)
+        process.start()
+        
+        # Store process with timestamp for tracking
+        self.active_processes[process_name] = process
+        
+        return process
+    
+    def _cleanup_finished_processes(self) -> None:
+        """Clean up finished processes from the tracking dictionary."""
+        finished_processes = []
+        for name, process in self.active_processes.items():
+            if not process.is_alive():
+                finished_processes.append(name)
+        
+        for name in finished_processes:
+            del self.active_processes[name]
+    
+    def close_all_plots(self) -> None:
+        """Close all active plotting processes."""
+        for name, process in self.active_processes.items():
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=5)  # Wait up to 5 seconds
+                if process.is_alive():
+                    process.kill()  # Force kill if still alive
+        self.active_processes.clear()
+        print("Closed all active plotting processes")
+    
+    def list_active_plots(self) -> None:
+        """List all currently active plotting processes."""
+        self._cleanup_finished_processes()
+        if self.active_processes:
+            print("Active plotting processes:")
+            for name, process in self.active_processes.items():
+                status = "running" if process.is_alive() else "finished"
+                print(f"  {name}: {status}")
+        else:
+            print("No active plotting processes")
+
+    def _plot_eeg_data_worker(self, raw_data, duration, n_channels, start, title, bgcolor):
+        """Worker function for plotting raw data in a separate process."""
+        raw_data.plot(
+            duration=duration,
+            n_channels=n_channels,
+            start=start,
+            remove_dc=False,
+            block=True,
+            show_options=True,
+            title=title,
+            bgcolor=bgcolor
+        )
 
     def plot_eeg_data(self, duration: float = 20.0, n_channels: int = 20,
-                        start: float = 0.0, block: bool = True,
+                        start: float = 0.0, block: bool = False, 
+                        use_multiprocessing: bool = False,
                         title: Optional[str] = None,
-                        plot_kwargs: Optional[Dict[str, Any]] = None) -> None:
+                        process_name: Optional[str] = None) -> Optional[mp.Process]:
         """
         Visually inspect raw EEG data.
         
@@ -197,31 +278,41 @@ class EEGPreprocessor:
             Start time for display
         block : bool, default=False
             Whether to block execution until plot is closed
+        use_multiprocessing : bool, default=False
+            Whether to open plot in a separate process
         title: str, optional, default=None
             The title of the plot
-        plot_kwargs: dict, optional
-            kwargs given to the plotting function
+        process_name : str, optional
+            Name for the process (auto-generated if not provided)
 
             
         Returns
         -------
-       None
+        mp.Process or None
+            The process object if use_multiprocessing=True, None otherwise
 
         """
         try:
-            if plot_kwargs:
-                self.raw.plot(
-                    duration=duration,
-                    n_channels=n_channels,
-                    start=start,
-                    remove_dc=False,
-                    block=block,
-                    show_options=True,
-                    title=title,
-                    bgcolor='white',
-                    **plot_kwargs
+            if use_multiprocessing:
+                if process_name is None:
+                    process_name = f"raw_plot_{len(self.active_processes)}"
+                
+                # Create a copy of raw data for the process
+                raw_copy = self.raw.copy()
+                
+                process = self._create_plot_process(
+                    target_func=self._plot_eeg_data_worker,
+                    args=(raw_copy, duration, n_channels, start, title, 'white'),
+                    process_name=process_name
                 )
+                
+                print(f"Opened raw data plot in separate process: {process_name}")
+                self.preprocessing_history.append(f"Inspected raw data (MP, duration={duration}s)")
+                return process
             else:
+
+                current_backend = plt.get_backend()
+
                 self.raw.plot(
                     duration=duration,
                     n_channels=n_channels,
@@ -230,17 +321,28 @@ class EEGPreprocessor:
                     block=block,
                     show_options=True,
                     title=title,
-                    bgcolor='white',
+                    bgcolor='white'
                 )
-            self.preprocessing_history.append(f"Inspected raw data (duration={duration}s)")
-            return None
+
+                # Clean up after blocking plot
+                if block:
+                    plt.close('all')  # Close all matplotlib figures
+                    # Reset the backend if needed
+                    if plt.get_backend() != current_backend:
+                        plt.switch_backend(current_backend)
+                    # Force garbage collection
+                    import gc
+                    gc.collect()
+
+                self.preprocessing_history.append(f"Inspected raw data (duration={duration}s)")
+                return None
                 
         except Exception as e:
             print(f"Error plotting raw data: {str(e)}")
             return None
 
     def plot_power_spectral_density(self, picks: Optional[Union[str, List[str]]] = None,
-                                   fmin: float = 0.5, fmax: float = 50.0, title: Optional[str] = None) -> None:
+                                   fmin: float = 0.5, fmax: float = 50.0) -> Optional[mp.Process]:
         """
         Plot power spectral density of the data.
         
@@ -252,8 +354,6 @@ class EEGPreprocessor:
             Minimum frequency to display
         fmax : float, default=50.0
             Maximum frequency to display
-        title: str, optional
-            title of the plot
         Returns
         -------
         mp.Process or None
@@ -265,14 +365,12 @@ class EEGPreprocessor:
                 picks = 'all'
         
         try:
-            psd_fig = self.raw.plot_psd(
+            self.raw.plot_psd(
                 picks=picks,
                 fmin=fmin,
                 fmax=fmax,
-                show=False
+                show=True
             )
-            psd_fig.suptitle(title)
-            psd_fig.show()
             self.preprocessing_history.append(f"Plotted PSD (fmin={fmin}, fmax={fmax})")
             return None
                 
@@ -328,8 +426,7 @@ class EEGPreprocessor:
         except Exception as e:
             print(f"Error resampling data: {str(e)}")
     
-    def detect_artifacts_automatic(self, ecg_channel: Optional[str]=None,
-                                   eog_channels: Optional[Union[str | list[str]]]=None) -> Dict[str, List]:
+    def detect_artifacts_automatic(self) -> Dict[str, List]:
         """
         Automatically detect ECG and EOG artifacts.
         
@@ -342,7 +439,7 @@ class EEGPreprocessor:
         
         # Try to find ECG artifacts
         try:
-            ecg_epochs = create_ecg_epochs(self.raw, ch_name=ecg_channel, reject=None)
+            ecg_epochs = create_ecg_epochs(self.raw, ch_name=None, reject=None)
             artifacts['ecg_events'] = ecg_epochs.events
             print(f"Detected {len(ecg_epochs.events)} ECG events")
         except Exception as e:
@@ -350,7 +447,7 @@ class EEGPreprocessor:
         
         # Try to find EOG artifacts
         try:
-            eog_epochs = create_eog_epochs(self.raw, ch_name=eog_channels, reject=None)
+            eog_epochs = create_eog_epochs(self.raw, ch_name=None, reject=None)
             artifacts['eog_events'] = eog_epochs.events
             print(f"Detected {len(eog_epochs.events)} EOG events")
         except Exception as e:
@@ -418,8 +515,17 @@ class EEGPreprocessor:
             print(f"Error fitting ICA: {str(e)}")
             self.ica = None
 
+    def _plot_ica_components_worker(self, ica, components, title=None):
+        """Worker function for plotting ICA components in a separate process."""
+        if components is not None:
+            ica.plot_components(picks=components, show=True, title=title)
+        else:
+            ica.plot_components(show=True, title=title)
+
     def plot_ica_components(self, components: Optional[List[int]] = None,
-                           title: Optional[str] = None) -> None:
+                           use_multiprocessing: bool = False,
+                           title: Optional[str] = None,
+                           process_name: Optional[str] = None) -> Optional[mp.Process]:
         """
         Plot ICA components for inspection.
 
@@ -427,31 +533,51 @@ class EEGPreprocessor:
         ----------
         components : list, optional
             Specific components to plot
+        use_multiprocessing : bool, default=False
+            Whether to open plot in a separate process
         process_name : str, optional
             Name for the process (auto-generated if not provided)
-        title: str, optional
-            Title for the plot
             
         Returns
         -------
-        None
+        mp.Process or None
+            The process object if use_multiprocessing=True, None otherwise
         """
         if self.ica is None:
             print("ICA has not been fitted yet. Run fit_ica() first.")
             return None
         
         try:
-            if components is not None:
-                self.ica.plot_components(picks=components, show=True, title=title)
+            if use_multiprocessing:
+                if process_name is None:
+                    process_name = f"ica_components_{len(self.active_processes)}"
+                
+                process = self._create_plot_process(
+                    target_func=self._plot_ica_components_worker,
+                    args=(self.ica, components, title),
+                    process_name=process_name
+                )
+                
+                print(f"Opened ICA components plot in separate process: {process_name}")
+                return process
             else:
-                self.ica.plot_components(show=True, title=title)
-            return None
+                if components is not None:
+                    self.ica.plot_components(picks=components, show=True, title=title)
+                else:
+                    self.ica.plot_components(show=True, title=title)
+                return None
                 
         except Exception as e:
             print(f"Error plotting ICA components: {str(e)}")
             return None
 
-    def plot_ica_sources(self, duration: float = 10.0, start: float = 0.0, block=True) -> None:
+    def _plot_ica_sources_worker(self, ica, raw_data):
+        """Worker function for plotting ICA sources in a separate process."""
+        ica.plot_sources(raw_data, show=True, block=True)
+
+    def plot_ica_sources(self, duration: float = 10.0, start: float = 0.0,
+                        use_multiprocessing: bool = False,
+                        process_name: Optional[str] = None) -> Optional[mp.Process]:
         """
         Plot ICA sources time series.
         
@@ -461,12 +587,15 @@ class EEGPreprocessor:
             Duration to plot in seconds
         start : float, default=0.0
             Start time in seconds
-        block: bool, default=True
-            If the plot should block the process
-
+        use_multiprocessing : bool, default=False
+            Whether to open plot in a separate process
+        process_name : str, optional
+            Name for the process (auto-generated if not provided)
+            
         Returns
         -------
-        None
+        mp.Process or None
+            The process object if use_multiprocessing=True, None otherwise
         """
         if self.ica is None:
             print("ICA has not been fitted yet. Run fit_ica() first.")
@@ -475,8 +604,21 @@ class EEGPreprocessor:
         try:
             raw_crop = self.raw.copy().crop(tmin=start, tmax=start + duration)
             
-            self.ica.plot_sources(raw_crop, show=True, block=block)
-            return None
+            if use_multiprocessing:
+                if process_name is None:
+                    process_name = f"ica_sources_{len(self.active_processes)}"
+                
+                process = self._create_plot_process(
+                    target_func=self._plot_ica_sources_worker,
+                    args=(self.ica, raw_crop),
+                    process_name=process_name
+                )
+                
+                print(f"Opened ICA sources plot in separate process: {process_name}")
+                return process
+            else:
+                self.ica.plot_sources(raw_crop, show=True, block=False)
+                return None
                 
         except Exception as e:
             print(f"Error plotting ICA sources: {str(e)}")
@@ -633,67 +775,69 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     
     # Inspect raw data with multiprocessing
     print("\n1. Inspecting raw data...")
-    print('Here we plot the eeg for the first time, allowing us to mark obvious bad channels')
-    preprocessor.plot_eeg_data(
+    raw_plot_process = preprocessor.plot_eeg_data(
         duration=20,
         # use_multiprocessing=True,
         block=True,
         title='unprocessed raw eeg',
+        process_name="initial_raw_inspection"
     )
     
     # Plot power spectral density with multiprocessing
     print("\n2. Plotting power spectral density...")
-    preprocessor.plot_power_spectral_density(
+    psd_plot_process = preprocessor.plot_power_spectral_density(
         fmin=0.5, 
         fmax=50,
-        title='PSD of EEG before processing'
     )
     
     # Apply filtering
     print("\n3. Applying bandpass filter...")
     preprocessor.apply_filter(l_freq=0.5, h_freq=40.0)
-
-    # Resample data
-    print("\n4. Resampling data...")
-    preprocessor.resample_data(sfreq=256.0)
-
-    # Plot power spectral density with multiprocessing
-    print("\n5. Plotting power spectral density...")
-    preprocessor.plot_power_spectral_density(
-        fmin=0.5,
-        fmax=50,
-        title='PSD of EEG after processing'
-    )
-
+    
     # Show filtered data
-    print("\n6. Inspecting filtered data...")
-    preprocessor.plot_eeg_data(
+    print("\n4. Inspecting filtered data...")
+    filtered_plot_process = preprocessor.plot_eeg_data(
         duration=20, 
+        # use_multiprocessing=True,
         block=True,
         title='eeg after filtering',
+        process_name="filtered_raw_inspection"
     )
     
+    # Resample data
+    print("\n5. Resampling data...")
+    preprocessor.resample_data(sfreq=256.0)
+    
     # Detect artifacts automatically
-    print("\n7. Detecting artifacts...")
+    print("\n6. Detecting artifacts...")
     artifacts = preprocessor.detect_artifacts_automatic()
 
     # Set montage
-    print("\n8. Setting electrode montage...")
+    print("\n7. Setting electrode montage...")
     preprocessor.set_montage('standard_1020')
 
     # Fit ICA
-    print("\n9. Fitting ICA...")
+    print("\n8. Fitting ICA...")
     preprocessor.fit_ica(n_components=15, crop_duration=60)
 
     # Plot ICA components with multiprocessing
     if preprocessor.ica is not None:
-        print("\n10. Plotting ICA components...")
-        preprocessor.plot_ica_components()
+        print("\n9. Plotting ICA components...")
+        ica_comp_process = preprocessor.plot_ica_components(
+            use_multiprocessing=False,
+            process_name="ica_components"
+        )
         
-        preprocessor.plot_ica_sources(duration=60)
+        ica_sources_process = preprocessor.plot_ica_sources(
+            duration=10,
+            use_multiprocessing=False,
+            process_name="ica_sources"
+        )
+    
 
-    # Remove ica components that were excluded
-    preprocessor.apply_ica()
+    # List active plots
+    print("\n10. Listing active plots...")
+    preprocessor.list_active_plots()
     
     # Save preprocessed data
     if output_path:
@@ -702,6 +846,11 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     
     # Print summary
     print(preprocessor.get_preprocessing_summary())
+    
+    print("\nNote: Multiple plots are now open in separate processes.")
+    print("Use preprocessor.list_active_plots() to see active plots")
+    print("Use preprocessor.close_all_plots() to close all plots")
+    
     return preprocessor
 
 
