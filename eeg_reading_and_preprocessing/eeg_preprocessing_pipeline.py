@@ -9,13 +9,11 @@ Author: EEG Analysis Team
 Date: 2025-06-03
 """
 
-import os
+from PreprocessingFunctions import *
 import re
+from mne.preprocessing import ICA, create_ecg_epochs, create_eog_epochs
 from typing import Dict, List, Optional, Tuple, Union, Any
 
-import mne
-import numpy as np
-from mne.preprocessing import ICA, create_ecg_epochs, create_eog_epochs
 
 # Configure MNE settings
 mne.set_config('MNE_BROWSER_BACKEND', 'qt')
