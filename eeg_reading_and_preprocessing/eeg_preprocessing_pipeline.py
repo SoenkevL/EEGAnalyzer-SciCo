@@ -248,8 +248,7 @@ class EEGPreprocessor:
             title of the plot
         Returns
         -------
-        mp.Process or None
-            The process object if use_multiprocessing=True, None otherwise
+        None
         """
         if picks is None:
             picks = self.channel_categories.get('EEG', [])
@@ -352,7 +351,7 @@ class EEGPreprocessor:
         return artifacts
     
     def fit_ica(self, n_components: Optional[int] = None, picks: Optional[Union[str, List[str]]] = None,
-               crop_duration: Optional[float] = None, filter_kwargs: Optional[Dict[str, Any]] = None, plot_block=False,
+               t_min: Optional[float] = 0, crop_duration: Optional[float] = None, filter_kwargs: Optional[Dict[str, Any]] = None, plot_block=False,
                 random_state: int = 42) -> None:
         """
         Fit Independent Component Analysis (ICA) for artifact removal.
@@ -363,6 +362,8 @@ class EEGPreprocessor:
             Number of ICA components to compute
         picks : str or list, optional
             Channels to include in ICA, if None all channels not marked as bad are included
+        t_start: float, optional
+            Where to start the cropped section
         crop_duration : float, optional
             Duration to crop data for ICA fitting (for computational efficiency)
         filter_kwargs: Dict, optional
@@ -379,7 +380,7 @@ class EEGPreprocessor:
         # Prepare data for ICA
         raw_for_ica = self.raw.copy()
         if crop_duration is not None:
-            raw_for_ica.crop(tmax=crop_duration)
+            raw_for_ica.crop(tmin=t_min, tmax=t_min+crop_duration)
 
         raw_for_ica.pick(picks)
 
@@ -628,71 +629,73 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     # Print channel information
     preprocessor.print_channel_info()
     
-    # Inspect raw data with multiprocessing
-    print("\n1. Inspecting raw data...")
-    print('Here we plot the eeg for the first time, allowing us to mark obvious bad channels')
+    # Inspect raw data
+    # print("\n0. Inspecting raw data...")
+    # print('Here we plot the eeg for the first time, allowing us to mark obvious bad channels')
+    # preprocessor.plot_eeg_data(
+    #     duration=20,
+    #     block=False,
+    #     title='unprocessed raw eeg',
+    # )
+
+    # Mark channels from the other category as bad
+    preprocessor.mark_bad_channels(preprocessor.channel_categories.get('UNCLASSIFIED', []))
+    # Show filtered data
+    print("\n1. Initial data inspection filtered within neurologically relevant sections for scalp eeg")
     preprocessor.plot_eeg_data(
         duration=20,
-        # use_multiprocessing=True,
-        block=False,
-        title='unprocessed raw eeg',
+        block=True,
+        title='Initial eeg inspection',
+        plot_kwargs={
+            'highpass': 0.5,
+            'lowpass': 70,
+        }
     )
-    
-    # Plot power spectral density with multiprocessing
-    print("\n2. Plotting power spectral density...")
+
+    # Plot power spectral density
+    print("\n2. Plotting power spectral density prior preprocessing...")
     preprocessor.plot_power_spectral_density(
         fmin=0.5, 
-        fmax=50,
-        title='PSD of EEG before processing',
+        fmax=70,
+        title='PSD of unprocessed EEG',
         picks=preprocessor.channel_categories.get('EEG', None)
     )
     
     #Apply filtering
-    print("\n3. Applying bandpass filter...")
-    preprocessor.apply_filter(l_freq=0.5, h_freq=40.0)
+    print("\n3. Applying bandpass filter in paper target range")
+    preprocessor.apply_filter(l_freq=1, h_freq=40)
 
     #Resample data
-    print("\n4. Resampling data...")
-    preprocessor.resample_data(sfreq=256.0)
+    print("\n4. Resampling data to match the sampling frequency of the target analysis and unify sampling frequencies across eegs")
+    preprocessor.resample_data(sfreq=1024)
 
     #Plot power spectral density with multiprocessing
-    print("\n5. Plotting power spectral density...")
+    print("\n5. Plotting power spectral density after processing...")
     preprocessor.plot_power_spectral_density(
         fmin=0.5,
         fmax=50,
-        title='PSD of EEG after processing'
-    )
-
-    # Show filtered data
-    print("\n6. Inspecting filtered data...")
-    preprocessor.plot_eeg_data(
-        duration=20, 
-        block=True,
-        title='eeg with filtering',
-        plot_kwargs={
-            'highpass': 1,
-            'lowpass': 40,
-        }
+        title='PSD of filtered and resampled EEG'
     )
 
     # Detect artifacts automatically
+    #TODO: something seems wrong with the artifact detection
     print("\n7. Detecting artifacts...")
     artifacts = preprocessor.detect_artifacts_automatic(ecg_channel=preprocessor.channel_categories.get('ECG', None),
                                                         eog_channels=preprocessor.channel_categories.get('EOG', None))
+    
+    #TODO: Implement dead channel detection
 
     # Set montage
-    print("\n8. Setting electrode montage...")
-    preprocessor.set_montage('standard_1020')
+    #TODO: names need to be converted ot standard names of montage
+    # also implement my custom methods here as I struggled with montages before and have some custom written solutions
+    #print("\n8. Setting electrode montage...")
+    # preprocessor.set_montage('standard_1020')
 
     # Fit ICA
     print("\n9. Fitting ICA...")
     ica_channels = [preprocessor.channel_categories.get(category, []) for category in ['EEG', 'EMG', 'ECG', 'EOG']]
     ica_channels = [channel for sublist in ica_channels for channel in sublist]
     preprocessor.fit_ica(n_components=15, crop_duration=60,
-                         filter_kwargs = {
-                            'l_freq': 1,
-                            'h_freq': 40
-                            },
                          picks=ica_channels
                          )
 
@@ -701,11 +704,17 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
         print("\n10. Plotting ICA components...")
         preprocessor.plot_ica_components()
 
-        preprocessor.plot_ica_sources(duration=60)
+        # TODO: needs proper digitization points to work properly
+        # preprocessor.plot_ica_sources(duration=60)
 
     # Remove ica components that were excluded
     preprocessor.apply_ica()
 
+    # Mark all channels as bad which are not eeg channels
+    exclude_channels = [channel for channel in preprocessor.raw.ch_names if channel not in preprocessor.channel_categories.get('EEG', [])]
+    preprocessor.mark_bad_channels(exclude_channels)
+
+    # One last check of the final eeg that is saved
     print("\n11. Inspecting the final eeg that will be saved...")
     print('Here we plot the eeg for the last time, controlling the final version of the preprocessed eeg')
     preprocessor.plot_eeg_data(
