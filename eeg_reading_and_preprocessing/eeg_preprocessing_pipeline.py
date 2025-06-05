@@ -14,6 +14,7 @@ import re
 from typing import Dict, List, Optional, Tuple, Union, Any
 
 import mne
+import numpy as np
 from mne.preprocessing import ICA, create_ecg_epochs, create_eog_epochs
 
 # Configure MNE settings
@@ -351,7 +352,8 @@ class EEGPreprocessor:
         return artifacts
     
     def fit_ica(self, n_components: Optional[int] = None, picks: Optional[Union[str, List[str]]] = None,
-               crop_duration: Optional[float] = None, random_state: int = 42) -> None:
+               crop_duration: Optional[float] = None, filter_kwargs: Optional[Dict[str, Any]] = None, plot_block=False,
+                random_state: int = 42) -> None:
         """
         Fit Independent Component Analysis (ICA) for artifact removal.
         
@@ -360,29 +362,32 @@ class EEGPreprocessor:
         n_components : int, optional
             Number of ICA components to compute
         picks : str or list, optional
-            Channels to include in ICA
+            Channels to include in ICA, if None all channels not marked as bad are included
         crop_duration : float, optional
             Duration to crop data for ICA fitting (for computational efficiency)
+        filter_kwargs: Dict, optional
+            arguments for raw.filter that is applied before the ica decomposition but will not be applied to the original raw file
+            of the processor. Leaf out for no filtering
+        plot_block: bool, default=False
+            If the plot of the eeg used for ica should block the fitting
         random_state : int, default=42
             Random state for reproducibility
         """
         if picks is None:
-            picks = self.channel_categories.get('EEG', [])
-            picks.append(self.channel_categories.get('EKG', []))
-            picks.append(self.channel_categories.get('EOG', []))
-            if not picks:
-                picks = 'eeg'
-        
+            picks = 'all'
+
         # Prepare data for ICA
         raw_for_ica = self.raw.copy()
         if crop_duration is not None:
             raw_for_ica.crop(tmax=crop_duration)
-        
-        if isinstance(picks, list) and picks:
-            raw_for_ica.pick(picks)
-        elif isinstance(picks, str):
-            raw_for_ica.pick_types(**{picks: True})
-        
+
+        raw_for_ica.pick(picks)
+
+        if filter_kwargs:
+            raw_for_ica.filter(**filter_kwargs)
+
+        raw_for_ica.plot(block=plot_block, title='EEG used for ica fitting')
+
         # Determine number of components
         if n_components is None:
             n_components = min(len(raw_for_ica.ch_names), 25)
@@ -620,7 +625,6 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     # Initialize preprocessor
     print("Initializing EEG Preprocessor...")
     preprocessor = EEGPreprocessor(filepath)
-    
     # Print channel information
     preprocessor.print_channel_info()
     
@@ -630,7 +634,7 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     preprocessor.plot_eeg_data(
         duration=20,
         # use_multiprocessing=True,
-        block=True,
+        block=False,
         title='unprocessed raw eeg',
     )
     
@@ -639,18 +643,19 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     preprocessor.plot_power_spectral_density(
         fmin=0.5, 
         fmax=50,
-        title='PSD of EEG before processing'
+        title='PSD of EEG before processing',
+        picks=preprocessor.channel_categories.get('EEG', None)
     )
     
-    # Apply filtering
+    #Apply filtering
     print("\n3. Applying bandpass filter...")
     preprocessor.apply_filter(l_freq=0.5, h_freq=40.0)
 
-    # Resample data
+    #Resample data
     print("\n4. Resampling data...")
     preprocessor.resample_data(sfreq=256.0)
 
-    # Plot power spectral density with multiprocessing
+    #Plot power spectral density with multiprocessing
     print("\n5. Plotting power spectral density...")
     preprocessor.plot_power_spectral_density(
         fmin=0.5,
@@ -663,12 +668,17 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     preprocessor.plot_eeg_data(
         duration=20, 
         block=True,
-        title='eeg after filtering',
+        title='eeg with filtering',
+        plot_kwargs={
+            'highpass': 1,
+            'lowpass': 40,
+        }
     )
-    
+
     # Detect artifacts automatically
     print("\n7. Detecting artifacts...")
-    artifacts = preprocessor.detect_artifacts_automatic()
+    artifacts = preprocessor.detect_artifacts_automatic(ecg_channel=preprocessor.channel_categories.get('ECG', None),
+                                                        eog_channels=preprocessor.channel_categories.get('EOG', None))
 
     # Set montage
     print("\n8. Setting electrode montage...")
@@ -676,18 +686,34 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
 
     # Fit ICA
     print("\n9. Fitting ICA...")
-    preprocessor.fit_ica(n_components=15, crop_duration=60)
+    ica_channels = [preprocessor.channel_categories.get(category, []) for category in ['EEG', 'EMG', 'ECG', 'EOG']]
+    ica_channels = [channel for sublist in ica_channels for channel in sublist]
+    preprocessor.fit_ica(n_components=15, crop_duration=60,
+                         filter_kwargs = {
+                            'l_freq': 1,
+                            'h_freq': 40
+                            },
+                         picks=ica_channels
+                         )
 
     # Plot ICA components with multiprocessing
     if preprocessor.ica is not None:
         print("\n10. Plotting ICA components...")
         preprocessor.plot_ica_components()
-        
+
         preprocessor.plot_ica_sources(duration=60)
 
     # Remove ica components that were excluded
     preprocessor.apply_ica()
-    
+
+    print("\n11. Inspecting the final eeg that will be saved...")
+    print('Here we plot the eeg for the last time, controlling the final version of the preprocessed eeg')
+    preprocessor.plot_eeg_data(
+        duration=20,
+        block=True,
+        title='final eeg',
+    )
+
     # Save preprocessed data
     if output_path:
         print(f"\n11. Saving preprocessed data to {output_path}...")
