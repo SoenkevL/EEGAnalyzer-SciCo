@@ -5,7 +5,7 @@ This module provides a comprehensive EEG preprocessing pipeline designed to hand
 various EEG/MEG data formats and preprocessing steps including filtering, resampling,
 artifact removal using ICA, and automatic channel categorization.
 
-Author: EEG Analysis Team
+Author: Soenke van Loh
 Date: 2025-06-03
 """
 
@@ -609,6 +609,22 @@ class EEGPreprocessor:
         summary += "="*60
         return summary
 
+    def rename_channels(self, mapping: Dict):
+        """
+        Rename EEG channels using a mapping dictionary.
+    
+        Parameters
+        ----------
+        mapping : dict
+            Dictionary containing the mapping of old channel names to new channel names
+        """
+        try:
+            self.raw.rename_channels(mapping)
+            self.preprocessing_history.append(f"Renamed channels using mapping")
+            print(f"Successfully renamed channels according to provided mapping")
+        except Exception as e:
+            print(f"Error renaming channels: {str(e)}")
+
 
 def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = None):
     """
@@ -626,18 +642,38 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     preprocessor = EEGPreprocessor(filepath)
     # Print channel information
     preprocessor.print_channel_info()
+    print(preprocessor.channel_categories.get('EEG'))
     
     # Inspect raw data
-    # print("\n0. Inspecting raw data...")
-    # print('Here we plot the eeg for the first time, allowing us to mark obvious bad channels')
-    # preprocessor.plot_eeg_data(
-    #     duration=20,
-    #     block=False,
-    #     title='unprocessed raw eeg',
-    # )
+    print("\n0. Inspecting raw data...")
+    print('Here we plot the eeg for the first time, allowing us to mark obvious bad channels')
+    preprocessor.raw.plot(
+        duration=20,
+        block=True,
+        title='unprocessed raw eeg',
+        remove_dc=True,
+        theme='light'
+    )
 
-    # Mark channels from the other category as bad
+    # Montage
+    print('\n Setting up montage for the eeg, using a standard montage from mne')
+    montage_name= 'standard_1020'
+    ## Show montage and get object
+    montage = show_example_montage(montage_name)
+    ## Create electrode mapping
+    raw_orig_ch_names = preprocessor.raw.ch_names
+    montage_ch_names = montage.ch_names
+    mapping_dict, unmatched = create_electrode_mapping(montage_ch_names, raw_orig_ch_names)
+    ## Rename channel names
+    preprocessor.rename_channels(mapping_dict)
+    ## Apply electrode
+    preprocessor.set_montage(montage_name)
+    ## Recategorize the channels
+    preprocessor.categorize_channels()
+
+    # Mark unclassified channels as bad
     preprocessor.mark_bad_channels(preprocessor.channel_categories.get('UNCLASSIFIED', []))
+
     # Show filtered data
     print("\n1. Initial data inspection filtered within neurologically relevant sections for scalp eeg")
     preprocessor.plot_eeg_data(
@@ -676,18 +712,12 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     )
 
     # Detect artifacts automatically
-    #TODO: something seems wrong with the artifact detection
+    #TODO: something seems wrong with the artifact detection, as EKG channel is in list but not detected
     print("\n7. Detecting artifacts...")
     artifacts = preprocessor.detect_artifacts_automatic(ecg_channel=preprocessor.channel_categories.get('ECG', None),
                                                         eog_channels=preprocessor.channel_categories.get('EOG', None))
     
     #TODO: Implement dead channel detection
-
-    # Set montage
-    #TODO: names need to be converted ot standard names of montage
-    # also implement my custom methods here as I struggled with montages before and have some custom written solutions
-    #print("\n8. Setting electrode montage...")
-    # preprocessor.set_montage('standard_1020')
 
     # Fit ICA
     print("\n9. Fitting ICA...")
@@ -702,8 +732,7 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
         print("\n10. Plotting ICA components...")
         preprocessor.plot_ica_components()
 
-        # TODO: needs proper digitization points to work properly
-        # preprocessor.plot_ica_sources(duration=60)
+        preprocessor.plot_ica_sources(duration=60)
 
     # Remove ica components that were excluded
     preprocessor.apply_ica()
@@ -730,15 +759,19 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     print(preprocessor.get_preprocessing_summary())
     return preprocessor
 
+def choose_montage():
+    print_all_builtin_montages()
+    montage = show_example_montage('standard_1020')
+    print(montage.ch_names)
+
 
 if __name__ == "__main__":
     # Example usage demonstrating multiprocessing capabilities
     sample_file = "../example/eeg/PN001-original.edf"
     output_file = "../example/eeg/PN001-preprocessed.fif"
-    
+
     if os.path.exists(sample_file):
         preprocessor = example_preprocessing_pipeline(sample_file, output_file)
-
     else:
         print(f"Sample file not found: {sample_file}")
         print("Please update the filepath or provide your own EEG file.")

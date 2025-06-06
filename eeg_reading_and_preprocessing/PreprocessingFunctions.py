@@ -1,4 +1,8 @@
 import os.path
+import re
+from difflib import SequenceMatcher
+from pprint import pprint
+
 import mne
 import neurokit2 as nk
 import mat4py
@@ -6,7 +10,140 @@ import numpy as np
 from icecream import ic
 import pandas as pd
 
+def print_all_builtin_montages():
+    builtin_montages = mne.channels.get_builtin_montages(descriptions=True)
+    for montage_name, montage_description in builtin_montages:
+        print(f"{montage_name}: {montage_description}")
 
+def show_example_montage(montage_name):
+    montage = mne.channels.make_standard_montage(montage_name)
+    print(montage)
+    montage.plot()  # 2D
+    fig = montage.plot(kind="3d", show=False)  # 3D
+    fig.gca().view_init(azim=70, elev=15)  # set view angle for tutorial
+    fig.show()
+    return montage
+
+#TODO: check Ai written code for matching of channel names and see if i should fuse/remove old functions, also check the code
+def normalize_electrode_name(name):
+    """Extract and normalize electrode name from various formats"""
+    # Remove common prefixes (case insensitive)
+    name = re.sub(r'^(eeg\s*|e\s*)', '', name.strip(), flags=re.IGNORECASE)
+    # Remove any remaining whitespace and convert to standard case
+    name = name.strip()
+    return name
+
+
+def find_best_match(raw_name, montage_list, similarity_threshold):
+    """Find the best matching electrode from montage list"""
+    normalized_raw = normalize_electrode_name(raw_name)
+
+    # First try exact match (case insensitive)
+    for electrode in montage_list:
+        if normalized_raw.lower() == electrode.lower():
+            return electrode
+
+    # Then try fuzzy matching
+    best_match = None
+    best_score = 0
+
+    for electrode in montage_list:
+        # Calculate similarity
+        score = SequenceMatcher(None, normalized_raw.lower(), electrode.lower()).ratio()
+        if score > best_score and score >= similarity_threshold:
+            best_score = score
+            best_match = electrode
+
+    return best_match
+
+
+def create_electrode_mapping(montage_electrodes, raw_channel_names, similarity_threshold=0.8):
+    """
+    Create a flexible mapping between montage electrodes and raw channel names.
+
+    Parameters:
+    -----------
+    montage_electrodes : list
+        List of standard electrode names from montage
+    raw_channel_names : list
+        List of channel names from raw data
+    similarity_threshold : float
+        Minimum similarity score for fuzzy matching (0-1)
+
+    Returns:
+    --------
+    dict : mapping from raw channel names to montage electrode names
+    """
+    # Create the mapping
+    mapping = {}
+    unmatched = []
+
+    for raw_name in raw_channel_names:
+        matched_electrode = find_best_match(raw_name, montage_electrodes, similarity_threshold)
+        if matched_electrode:
+            mapping[raw_name] = matched_electrode
+        else:
+            unmatched.append(raw_name)
+
+    # Print results
+    print("Electrode Mapping:")
+    print("-" * 50)
+    for raw_name, electrode in mapping.items():
+        print(f"'{raw_name}' -> '{electrode}'")
+
+    if unmatched:
+        print(f"\nUnmatched channels ({len(unmatched)}):")
+        for channel in unmatched:
+            print(f"  {channel}")
+
+    print(f"\nTotal matched: {len(mapping)}/{len(raw_channel_names)}")
+
+    return mapping, unmatched
+
+def test_create_electrode_mapping():
+    # Your electrode lists
+    montage_electrodes = ['Fp1', 'Fpz', 'Fp2', 'AF9', 'AF7', 'AF5', 'AF3', 'AF1', 'AFz', 'AF2', 'AF4', 'AF6', 'AF8', 'AF10', 'F9', 'F7', 'F5', 'F3', 'F1', 'Fz', 'F2', 'F4', 'F6', 'F8', 'F10', 'FT9', 'FT7', 'FC5', 'FC3', 'FC1', 'FCz', 'FC2', 'FC4', 'FC6', 'FT8', 'FT10', 'T9', 'T7', 'C5', 'C3', 'C1', 'Cz', 'C2', 'C4', 'C6', 'T8', 'T10', 'TP9', 'TP7', 'CP5', 'CP3', 'CP1', 'CPz', 'CP2', 'CP4', 'CP6', 'TP8', 'TP10', 'P9', 'P7', 'P5', 'P3', 'P1', 'Pz', 'P2', 'P4', 'P6', 'P8', 'P10', 'PO9', 'PO7', 'PO5', 'PO3', 'PO1', 'POz', 'PO2', 'PO4', 'PO6', 'PO8', 'PO10', 'O1', 'Oz', 'O2', 'O9', 'Iz', 'O10', 'T3', 'T5', 'T4', 'T6', 'M1', 'M2', 'A1', 'A2']
+
+    raw_channel_names = ['EEG Fp1', 'EEG F3', 'EEG C3', 'EEG P3', 'EEG O1', 'EEG F7', 'EEG T3', 'EEG T5', 'EEG Fc1', 'EEG Fc5', 'EEG Cp1', 'EEG Cp5', 'EEG F9', 'EEG Fz', 'EEG Cz', 'EEG Pz', 'EEG Fp2', 'EEG F4', 'EEG C4', 'EEG P4', 'EEG O2', 'EEG F8', 'EEG T4', 'EEG T6', 'EEG Fc2', 'EEG Fc6', 'EEG Cp2', 'EEG Cp6', 'EEG F10']
+
+    # Create the mapping
+    electrode_mapping = create_electrode_mapping(montage_electrodes, raw_channel_names)
+
+    # Test with additional examples you mentioned
+    test_names = ['eeg F8', 'e F8', 'f8', 'eeg f8']
+    print(f"\nTesting additional examples:")
+    print("-" * 30)
+    for test_name in test_names:
+        normalized = re.sub(r'^(eeg\s*|e\s*)', '', test_name.strip(), flags=re.IGNORECASE).strip()
+        # Find match in montage
+        match = None
+        for electrode in montage_electrodes:
+            if normalized.lower() == electrode.lower():
+                match = electrode
+                break
+        print(f"'{test_name}' -> '{match}' (normalized: '{normalized}')")
+
+    # Get the rename dictionary
+    rename_dict = apply_electrode_mapping(None, electrode_mapping)
+    print(f"\nRename dictionary for MNE:")
+    pprint(rename_dict)
+
+# Function to apply mapping to rename channels
+def apply_electrode_mapping(raw_object, mapping):
+    """
+    Apply the electrode mapping to rename channels in a raw object.
+    This assumes you're using MNE-Python or similar library.
+    """
+    # Create rename dictionary (only for matched channels)
+    rename_dict = {old_name: new_name for old_name, new_name in mapping.items()}
+
+    # If using MNE-Python, you would do:
+    # raw_object.rename_channels(rename_dict)
+
+    return rename_dict
+
+
+### end new code
 def only_keep_10_20_channels_and_check_bipolar(raw):
     """
     Checks the EEG channels for containing a valid part, only once and no part that is marked as invalid in order to
