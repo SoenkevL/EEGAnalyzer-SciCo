@@ -15,8 +15,11 @@ def print_all_builtin_montages():
     for montage_name, montage_description in builtin_montages:
         print(f"{montage_name}: {montage_description}")
 
+def make_montage(montage_name):
+   return mne.channels.make_standard_montage(montage_name)
+
 def show_example_montage(montage_name):
-    montage = mne.channels.make_standard_montage(montage_name)
+    montage = make_montage(montage_name)
     print(montage)
     montage.plot()  # 2D
     fig = montage.plot(kind="3d", show=False)  # 3D

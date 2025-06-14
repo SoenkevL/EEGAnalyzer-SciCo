@@ -301,8 +301,8 @@ class PreprocessingFrame(ttk.Frame):
                 pipeline.apply_notch_filter(freqs=parameters["freq"])
             elif step_name == "resample":
                 pipeline.resample(sfreq=parameters["sfreq"])
-            elif step_name == "set_montage":
-                pipeline.set_montage(montage=parameters["montage"])
+            elif step_name == "fit_montage":
+                pipeline.fit_montage(montage=parameters["montage"])
             elif step_name == "detect_bad_channels":
                 pipeline.detect_bad_channels()
             elif step_name == "run_ica":
@@ -373,14 +373,14 @@ class PreprocessingFrame(ttk.Frame):
     def set_montage(self):
         """Set montage."""
         montage = self.montage_var.get()
-        self.step_callback("set_montage", {"montage": montage})
+        self.step_callback("fit_montage", {"montage": montage})
         
     def plot_raw_data(self):
         """Plot raw EEG data."""
         parameters = {
             "duration": self.duration_var.get(),
             "n_channels": self.n_channels_var.get(),
-            "start": 0.0
+            "start": 0
         }
         self.plot_callback("raw", parameters)
         

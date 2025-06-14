@@ -519,7 +519,26 @@ class EEGPreprocessor:
             self.preprocessing_history.append(f"Applied ICA, excluded: {excluded}")
         except Exception as e:
             print(f"Error applying ICA: {str(e)}")
-    
+
+    def run_ica(self):
+        # Fit ICA
+        print("\n9. Fitting ICA...")
+        ica_channels = [self.channel_categories.get(category, []) for category in ['EEG', 'EMG', 'ECG', 'EOG']]
+        ica_channels = [channel for sublist in ica_channels for channel in sublist]
+        self.fit_ica(n_components=15, crop_duration=60,
+                             picks=ica_channels
+                             )
+
+        # Plot ICA components with multiprocessing
+        if self.ica is not None:
+            print("\n10. Plotting ICA components...")
+            self.plot_ica_components()
+
+            self.plot_ica_sources(duration=60)
+
+        # Remove ica components that were excluded
+        self.apply_ica()
+
     def mark_bad_channels(self, bad_channels: List[str]) -> None:
         """
         Mark channels as bad.
@@ -546,8 +565,17 @@ class EEGPreprocessor:
             self.preprocessing_history.append("Interpolated bad channels")
         except Exception as e:
             print(f"Error interpolating bad channels: {str(e)}")
-    
-    def set_montage(self, montage: str = 'standard_1020') -> None:
+
+    def set_montage(self, montage):
+        try:
+            montage_obj = mne.channels.make_standard_montage(montage)
+            self.raw.set_montage(montage_obj, match_case=False, on_missing='warn')
+            print(f"Set montage: {montage}")
+            self.preprocessing_history.append(f"Set montage: {montage}")
+        except Exception as e:
+            print(f"Error setting montage: {str(e)}")
+
+    def fit_montage(self, montage: str = 'standard_1020', show_example=False) -> None:
         """
         Set electrode montage for spatial information.
         
@@ -556,14 +584,25 @@ class EEGPreprocessor:
         montage : str, default='standard_1020'
             Montage to use ('standard_1020', 'standard_1005', etc.)
         """
-        try:
-            montage_obj = mne.channels.make_standard_montage(montage)
-            self.raw.set_montage(montage_obj, match_case=False, on_missing='warn')
-            print(f"Set montage: {montage}")
-            self.preprocessing_history.append(f"Set montage: {montage}")
-        except Exception as e:
-            print(f"Error setting montage: {str(e)}")
-    
+        # Montage
+        # print('\n Setting up montage for the eeg, using a standard montage from mne')
+        montage_name = montage
+        ## Show montage and get object
+        if show_example:
+            montage = show_example_montage(montage)
+        else:
+            montage = make_montage(montage_name)
+        ## Create electrode mapping
+        raw_orig_ch_names = self.raw.ch_names
+        montage_ch_names = montage.ch_names
+        mapping_dict, unmatched = create_electrode_mapping(montage_ch_names, raw_orig_ch_names)
+        ## Rename channel names
+        self.rename_channels(mapping_dict)
+        ## Apply electrode
+        self.set_montage(montage_name)
+        ## Recategorize the channels
+        self.categorize_channels()
+
     def save_preprocessed(self, output_path: str, overwrite: bool = False) -> None:
         """
         Save preprocessed data to file.
