@@ -9,7 +9,7 @@ Author: Soenke van Loh
 Date: 2025-06-03
 """
 
-from PreprocessingFunctions import *
+from .PreprocessingFunctions import *
 import re
 from mne.preprocessing import ICA, create_ecg_epochs, create_eog_epochs
 from typing import Dict, List, Optional, Tuple, Union, Any
