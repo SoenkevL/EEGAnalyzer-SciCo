@@ -767,8 +767,8 @@ def choose_montage():
 
 if __name__ == "__main__":
     # Example usage demonstrating multiprocessing capabilities
-    sample_file = "../example/eeg/PN001-original.edf"
-    output_file = "../example/eeg/PN001-preprocessed.fif"
+    sample_file = "../../../example/eeg/PN001-original.edf"
+    output_file = "../../../example/eeg/PN001-preprocessed.fif"
 
     if os.path.exists(sample_file):
         preprocessor = example_preprocessing_pipeline(sample_file, output_file)
