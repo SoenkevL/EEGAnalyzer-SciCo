@@ -11,25 +11,21 @@ Copyright (C) <2025>  <Soenke van Loh>
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 
-Main EEG Preprocessing GUI Application.
-
-This module provides the main application window for EEG preprocessing.
+Main application class for the EEG preprocessing GUI.
 """
 
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, filedialog, messagebox
 import os
 import sys
 
 # Add the parent directory to the path to import the preprocessing modules
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from gui.preprocessing_viewer.preprocessing_frame import PreprocessingFrame
 from gui.preprocessing_viewer.plot_frame import PreprocessingPlotFrame
 from eeganalyzer.preprocessing.eeg_preprocessing_pipeline import EEGPreprocessor as EEGPreprocessingPipeline
 
-
-class PreprocessingApp:
+class PreprocessingViewerApp:
     """Main application class for EEG preprocessing GUI."""
     
     def __init__(self, root):
@@ -41,7 +37,7 @@ class PreprocessingApp:
         """
         self.root = root
         self.root.title("EEG Preprocessing Tool")
-        self.root.geometry("1200x800")
+        self.root.geometry("1400x800")  # Wider for side-by-side layout
         
         # Initialize the preprocessing pipeline
         self.preprocessing_pipeline = None
@@ -51,35 +47,38 @@ class PreprocessingApp:
         self.setup_ui()
         
     def setup_ui(self):
-        """Set up the user interface."""
+        """Set up the user interface with side-by-side layout."""
+        # Create menu bar
+        self.create_menu()
+        
         # Create main frame
         main_frame = ttk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Create menu bar
-        self.create_menu()
+        # Configure grid layout - similar to metrics viewer
+        main_frame.grid_columnconfigure(0, weight=1)    # Controls panel
+        main_frame.grid_columnconfigure(1, weight=3)    # Plot area (more space)
+        main_frame.grid_rowconfigure(0, weight=1)
         
-        # Create notebook for tabs
-        self.notebook = ttk.Notebook(main_frame)
-        self.notebook.pack(fill=tk.BOTH, expand=True)
-        
-        # Create preprocessing tab
+        # Create preprocessing controls frame (left side)
         self.preprocessing_frame = PreprocessingFrame(
-            self.notebook, 
+            main_frame, 
             self.on_preprocessing_step_selected,
-            self.on_plot_requested
+            self.on_plot_requested,
+            width=350
         )
-        self.notebook.add(self.preprocessing_frame, text="Preprocessing")
+        self.preprocessing_frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+        self.preprocessing_frame.grid_propagate(False)  # Prevent resizing based on content
         
-        # Create plot tab
-        self.plot_frame = PreprocessingPlotFrame(self.notebook)
-        self.notebook.add(self.plot_frame, text="EEG Visualization")
+        # Create plot frame (right side)
+        self.plot_frame = PreprocessingPlotFrame(main_frame, title="EEG Analysis")
+        self.plot_frame.grid(row=0, column=1, padx=(0, 5), pady=5, sticky="nsew")
         
-        # Status bar
+        # Status bar at bottom
         self.status_var = tk.StringVar()
         self.status_var.set("Ready - Please load an EEG file")
         status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN)
-        status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        status_bar.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(5, 0))
         
     def create_menu(self):
         """Create the application menu."""
@@ -95,6 +94,12 @@ class PreprocessingApp:
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self.root.quit)
         
+        # View menu for direct plots
+        view_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="View", menu=view_menu)
+        view_menu.add_command(label="Plot Raw Data", command=self.plot_raw_data_direct)
+        view_menu.add_command(label="Plot ICA Sources", command=self.plot_ica_sources_direct)
+        
         # Help menu
         help_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Help", menu=help_menu)
@@ -105,11 +110,13 @@ class PreprocessingApp:
         file_path = filedialog.askopenfilename(
             title="Select EEG File",
             filetypes=[
-                ("EEG files", "*.edf *.fif *.set *.bdf"),
+                ("EEG files", "*.edf *.fif *.set *.bdf *.gdf *.vhdr"),
                 ("EDF files", "*.edf"),
                 ("FIF files", "*.fif"),
                 ("SET files", "*.set"),
                 ("BDF files", "*.bdf"),
+                ("GDF files", "*.gdf"),
+                ("BrainVision files", "*.vhdr"),
                 ("All files", "*.*")
             ]
         )
@@ -118,6 +125,9 @@ class PreprocessingApp:
             try:
                 self.current_file = file_path
                 self.preprocessing_pipeline = EEGPreprocessingPipeline(file_path)
+
+                # create channel categories
+                self.preprocessing_pipeline.categorize_channels(mark_unclassified_as_bad=True)
                 
                 # Update status
                 self.status_var.set(f"Loaded: {os.path.basename(file_path)}")
@@ -153,7 +163,7 @@ class PreprocessingApp:
         if file_path:
             try:
                 # Save the preprocessed data
-                self.preprocessing_pipeline.save_preprocessed_data(file_path)
+                self.preprocessing_pipeline.save_preprocessed(file_path, overwrite=True)
                 messagebox.showinfo("Success", f"Data saved successfully to: {os.path.basename(file_path)}")
                 self.status_var.set(f"Saved: {os.path.basename(file_path)}")
                 
@@ -173,24 +183,63 @@ class PreprocessingApp:
             return
             
         try:
-            # Apply the preprocessing step
-            success = self.preprocessing_frame.apply_preprocessing_step(
-                self.preprocessing_pipeline, step_name, parameters
-            )
+            # Apply the preprocessing step through the pipeline directly
+            success = self._apply_preprocessing_step(step_name, parameters)
             
             if success:
                 self.status_var.set(f"Applied: {step_name}")
-                # Update plot if needed
+                # Update embedded plot
                 self.plot_frame.update_plot()
+                # Update info display in preprocessing frame
+                self.preprocessing_frame.update_info_display(self.preprocessing_pipeline)
+                self.preprocessing_frame.update_history(self.preprocessing_pipeline.preprocessing_history)
             else:
                 self.status_var.set(f"Failed to apply: {step_name}")
                 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to apply preprocessing step: {str(e)}")
             
+    def _apply_preprocessing_step(self, step_name: str, parameters: dict) -> bool:
+        """
+        Apply a preprocessing step to the pipeline directly.
+        
+        Args:
+            step_name: Name of the preprocessing step
+            parameters: Parameters for the step
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            if step_name == "highpass":
+                self.preprocessing_pipeline.apply_filter(l_freq=parameters["freq"], h_freq=None)
+            elif step_name == "lowpass":
+                self.preprocessing_pipeline.apply_filter(l_freq=None, h_freq=parameters["freq"])
+            elif step_name == "notch":
+                self.preprocessing_pipeline.apply_notch_filter(freqs=parameters["freq"])
+            elif step_name == "resample":
+                self.preprocessing_pipeline.resample_data(sfreq=parameters["sfreq"])
+            elif step_name == "fit_montage":
+                self.preprocessing_pipeline.fit_montage(montage=parameters["montage"])
+            elif step_name == "detect_bad_channels":
+                self.preprocessing_pipeline.detect_artifacts_automatic()
+            elif step_name == "fit_ica":
+                self.preprocessing_pipeline.run_ica_fitting()
+                self.on_plot_requested("ica_sources", {})
+            elif step_name == "apply_ica":
+                self.preprocessing_pipeline.run_ica_selection()
+            else:
+                return False
+                
+            return True
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to apply {step_name}: {str(e)}")
+            return False
+            
     def on_plot_requested(self, plot_type, parameters):
         """
-        Handle plot request.
+        Handle embedded plot request (for analysis plots like PSD, ICA sources).
         
         Args:
             plot_type: Type of plot requested
@@ -201,14 +250,44 @@ class PreprocessingApp:
             return
             
         try:
-            # Switch to plot tab
-            self.notebook.select(1)
-            
-            # Request plot
+            # Request embedded plot
             self.plot_frame.create_plot(plot_type, parameters)
             
         except Exception as e:
             messagebox.showerror("Error", f"Failed to create plot: {str(e)}")
+            
+    # Direct plotting methods (using pipeline methods directly)
+    def plot_raw_data_direct(self):
+        """Plot raw data directly through pipeline."""
+        if not self.preprocessing_pipeline:
+            messagebox.showwarning("Warning", "No data loaded")
+            return
+            
+        try:
+            self.preprocessing_pipeline.plot_eeg_data(
+                duration=20.0,
+                n_channels=20,
+                start=0.0,
+                block=True,
+                title="Raw EEG Data"
+            )
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to plot raw data: {str(e)}")
+            
+    def plot_ica_sources_direct(self):
+        """Plot ICA sources directly through pipeline."""
+        if not self.preprocessing_pipeline:
+            messagebox.showwarning("Warning", "No data loaded")
+            return
+            
+        if not hasattr(self.preprocessing_pipeline, 'ica') or self.preprocessing_pipeline.ica is None:
+            messagebox.showwarning("Warning", "ICA has not been computed yet. Run ICA first.")
+            return
+            
+        try:
+            self.preprocessing_pipeline.plot_ica_sources()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to plot ICA sources: {str(e)}")
             
     def show_about(self):
         """Show about dialog."""
@@ -223,3 +302,14 @@ class PreprocessingApp:
             "- Save preprocessed data\n\n"
             "Copyright (C) 2025 Soenke van Loh"
         )
+
+
+def main():
+    """Main entry point for the preprocessing GUI."""
+    root = tk.Tk()
+    app = PreprocessingViewerApp(root)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()

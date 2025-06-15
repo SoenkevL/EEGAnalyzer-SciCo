@@ -13,9 +13,8 @@ Copyright (C) <2025>  <Soenke van Loh>
 
 Plot frame for EEG preprocessing GUI visualization.
 
-This module provides the plotting functionality for the EEG preprocessing GUI,
-focusing on embedded matplotlib plots for analysis metrics and using MNE's 
-native Qt plotting for raw data and components.
+This module provides embedded plotting functionality for the EEG preprocessing GUI,
+focusing on analysis plots like PSD and ICA sources that are displayed inline.
 """
 
 import tkinter as tk
@@ -23,100 +22,90 @@ from tkinter import ttk, messagebox
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import numpy as np
-import subprocess
-import sys
-import os
-import tempfile
 
 
 class PreprocessingPlotFrame(ttk.Frame):
-    """Frame containing EEG visualization and plotting capabilities."""
+    """Frame containing embedded EEG analysis plots."""
     
-    def __init__(self, parent):
+    def __init__(self, parent, title="EEG Analysis", **kwargs):
         """
         Initialize the plot frame.
         
         Args:
             parent: Parent widget
+            title: Title for the plot frame
+            **kwargs: Additional arguments for the Frame constructor
         """
-        super().__init__(parent)
+        super().__init__(parent, **kwargs)
         
         self.preprocessing_pipeline = None
         self.current_plot_type = None
         self.current_parameters = {}
         
         # Create the UI
-        self.setup_ui()
+        self.setup_ui(title)
         
-    def setup_ui(self):
+    def setup_ui(self, title):
         """Set up the user interface."""
+        # Configure grid layout
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+        
         # Create control panel
         control_frame = ttk.Frame(self)
-        control_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+        control_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
         
-        # Plot type selection - only for embedded matplotlib plots
-        ttk.Label(control_frame, text="Analysis Plot:").pack(side=tk.LEFT)
+        # Title label
+        title_label = ttk.Label(control_frame, text=title, font=("Arial", 14, "bold"))
+        title_label.pack(side=tk.LEFT)
+        
+        # Plot type selection
+        ttk.Label(control_frame, text="Analysis:").pack(side=tk.LEFT, padx=(20, 5))
         self.plot_type_var = tk.StringVar(value="psd")
         plot_type_combo = ttk.Combobox(
             control_frame,
             textvariable=self.plot_type_var,
-            values=["psd", "channel_stats", "preprocessing_summary"],
+            values=["psd", "ica_components"],
             state="readonly",
-            width=20
+            width=18
         )
         plot_type_combo.pack(side=tk.LEFT, padx=5)
         
-        # Refresh button for embedded plots
+        # Refresh button
         refresh_button = ttk.Button(
             control_frame,
-            text="Update Analysis Plot",
+            text="Update Plot",
             command=self.refresh_plot
         )
         refresh_button.pack(side=tk.LEFT, padx=5)
         
-        # Separator
-        ttk.Separator(control_frame, orient='vertical').pack(side=tk.LEFT, fill=tk.Y, padx=10)
-        
-        # MNE Native plotting buttons
-        ttk.Label(control_frame, text="MNE Plots:").pack(side=tk.LEFT)
-        
-        plot_raw_button = ttk.Button(
-            control_frame,
-            text="Plot Raw Data",
-            command=self.plot_raw_data
-        )
-        plot_raw_button.pack(side=tk.LEFT, padx=5)
-        
-        plot_ica_button = ttk.Button(
-            control_frame,
-            text="Plot ICA Components",
-            command=self.plot_ica_components
-        )
-        plot_ica_button.pack(side=tk.LEFT, padx=5)
-        
-        # Create matplotlib frame for analysis plots only
+        # Create matplotlib frame
         self.create_matplotlib_frame()
         
     def create_matplotlib_frame(self):
-        """Create the matplotlib plotting frame for analysis plots."""
+        """Create the matplotlib plotting frame."""
         # Create matplotlib figure
-        self.fig = plt.Figure(figsize=(12, 8), dpi=100)
+        self.fig = plt.Figure(figsize=(10, 6), dpi=100)
         self.ax = self.fig.add_subplot(111)
         
         # Create canvas
         self.canvas = FigureCanvasTkAgg(self.fig, self)
         self.canvas.draw()
-        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        self.canvas.get_tk_widget().grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
         
-        # Create toolbar
-        toolbar = NavigationToolbar2Tk(self.canvas, self)
+        # Create a separate frame for the toolbar to avoid geometry manager conflicts
+        toolbar_frame = ttk.Frame(self)
+        toolbar_frame.grid(row=2, column=0, sticky="ew", padx=5)
+        
+        # Create toolbar in the separate frame
+        toolbar = NavigationToolbar2Tk(self.canvas, toolbar_frame)
         toolbar.update()
-        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        # The toolbar will automatically pack itself within toolbar_frame
         
         # Initial empty plot
-        self.ax.text(0.5, 0.5, 'Load EEG data to view analysis plots\n\nUse "Plot Raw Data" button for EEG time series visualization', 
+        self.ax.text(0.5, 0.5, 'Load EEG data to view analysis plots\n\nUse View menu for raw data and direct MNE plots', 
                     horizontalalignment='center', verticalalignment='center',
-                    transform=self.ax.transAxes, fontsize=14, alpha=0.7)
+                    transform=self.ax.transAxes, fontsize=12, alpha=0.7)
         self.ax.set_xticks([])
         self.ax.set_yticks([])
         
@@ -134,11 +123,11 @@ class PreprocessingPlotFrame(ttk.Frame):
         """Refresh the plot with current data."""
         if self.preprocessing_pipeline and self.preprocessing_pipeline.raw:
             self.create_plot("psd", {})
-            
+
     def create_plot(self, plot_type: str, parameters: dict):
         """
-        Create an analysis plot of the specified type (embedded matplotlib only).
-        
+        Create an embedded analysis plot using preprocessing pipeline functions.
+
         Args:
             plot_type: Type of analysis plot to create
             parameters: Parameters for the plot
@@ -146,210 +135,99 @@ class PreprocessingPlotFrame(ttk.Frame):
         if not self.preprocessing_pipeline or not self.preprocessing_pipeline.raw:
             messagebox.showwarning("Warning", "No EEG data loaded")
             return
-            
+
         self.current_plot_type = plot_type
         self.current_parameters = parameters
-        
+
         try:
-            # Clear the current plot
-            self.ax.clear()
-            
-            raw = self.preprocessing_pipeline.raw
-            
-            if plot_type == "psd":
-                self._plot_psd(raw, parameters)
-            elif plot_type == "channel_stats":
-                self._plot_channel_stats(raw, parameters)
-            elif plot_type == "preprocessing_summary":
-                self._plot_preprocessing_summary(raw, parameters)
+            # Get figure from preprocessing pipeline (with default size)
+            pipeline_fig = self._get_pipeline_figure(plot_type, parameters)
+
+            if pipeline_fig is not None:
+                # Resize the figure to match current canvas size
+                self._resize_figure_to_canvas(pipeline_fig)
+
+                # Replace the figure reference and redraw
+                self.canvas.figure = pipeline_fig
+                self.fig = pipeline_fig  # Keep reference
+                self.canvas.draw()
             else:
-                self.ax.text(0.5, 0.5, f'Analysis plot type "{plot_type}" not implemented', 
-                            horizontalalignment='center', verticalalignment='center',
-                            transform=self.ax.transAxes, fontsize=16)
-                
-            # Update the canvas
-            self.canvas.draw()
-            
+                self._show_error_message(f'Could not generate {plot_type} plot')
+
         except Exception as e:
             messagebox.showerror("Error", f"Failed to create analysis plot: {str(e)}")
-            self.ax.clear()
-            self.ax.text(0.5, 0.5, f'Error creating plot: {str(e)}', 
-                        horizontalalignment='center', verticalalignment='center',
-                        transform=self.ax.transAxes, fontsize=12, color='red')
-            self.canvas.draw()
-            
-    def _plot_psd(self, raw, parameters):
-        """Plot power spectral density (embedded matplotlib)."""
+            self._show_error_message(f'Error creating plot: {str(e)}')
+
+    def _resize_figure_to_canvas(self, figure):
+        """
+        Resize a matplotlib figure to match the current canvas size.
+
+        Args:
+            figure: matplotlib.Figure to resize
+        """
         try:
-            # Compute PSD for a subset of channels to avoid overcrowding
-            picks = raw.pick_types(eeg=True, meg=False, exclude='bads')
-            n_channels = min(10, len(picks.ch_names))  # Limit to 10 channels
-            selected_picks = picks.ch_names[:n_channels]
-            
-            # Compute PSD
-            psd_data = raw.compute_psd(picks=selected_picks, fmax=100)
-            freqs = psd_data.freqs
-            psd_values = psd_data.get_data()
-            
-            # Plot PSD for each channel
-            for i, ch_name in enumerate(selected_picks):
-                self.ax.semilogy(freqs, psd_values[i], label=ch_name, alpha=0.7)
-                
-            self.ax.set_xlabel('Frequency (Hz)')
-            self.ax.set_ylabel('Power Spectral Density (V²/Hz)')
-            self.ax.set_title(f'Power Spectral Density - {n_channels} channels')
-            self.ax.grid(True, alpha=0.3)
-            self.ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-            self.fig.tight_layout()
-            
+            # Get current canvas size in pixels
+            canvas_width_px = self.canvas.get_tk_widget().winfo_width()
+            canvas_height_px = self.canvas.get_tk_widget().winfo_height()
+
+            # Convert pixels to inches using the figure's DPI
+            dpi = figure.dpi
+            canvas_width_inches = canvas_width_px / dpi
+            canvas_height_inches = canvas_height_px / dpi
+
+            # Resize the figure to match canvas size
+            figure.set_size_inches(canvas_width_inches, canvas_height_inches)
+
+            # Ensure layout is updated
+            figure.tight_layout()
+
         except Exception as e:
-            raise Exception(f"Error plotting PSD: {str(e)}")
-            
-    def _plot_channel_stats(self, raw, parameters):
-        """Plot channel statistics (embedded matplotlib)."""
+            print(f"Warning: Could not resize figure: {str(e)}")
+
+
+    def _get_pipeline_figure(self, plot_type: str, parameters: dict):
+        """
+        Get figure from preprocessing pipeline based on plot type.
+
+        Args:
+            plot_type: Type of plot to create
+            parameters: Parameters for the plot
+
+        Returns:
+            matplotlib.Figure or None: Figure object from pipeline
+        """
         try:
-            # Get data for statistics
-            data = raw.get_data()
-            ch_names = raw.ch_names
-            
-            # Compute basic statistics
-            means = np.mean(data, axis=1)
-            stds = np.std(data, axis=1)
-            
-            # Create subplots
-            self.ax.clear()
-            self.fig.clear()
-            
-            ax1 = self.fig.add_subplot(2, 1, 1)
-            ax2 = self.fig.add_subplot(2, 1, 2)
-            
-            # Plot means
-            x_pos = np.arange(len(ch_names))
-            ax1.bar(x_pos, means * 1e6, alpha=0.7)  # Convert to microvolts
-            ax1.set_ylabel('Mean Amplitude (µV)')
-            ax1.set_title('Channel Mean Amplitudes')
-            ax1.set_xticks(x_pos[::max(1, len(ch_names)//10)])
-            ax1.set_xticklabels([ch_names[i] for i in range(0, len(ch_names), max(1, len(ch_names)//10))], rotation=45)
-            ax1.grid(True, alpha=0.3)
-            
-            # Plot standard deviations
-            ax2.bar(x_pos, stds * 1e6, alpha=0.7, color='orange')  # Convert to microvolts
-            ax2.set_ylabel('Standard Deviation (µV)')
-            ax2.set_xlabel('Channels')
-            ax2.set_title('Channel Standard Deviations')
-            ax2.set_xticks(x_pos[::max(1, len(ch_names)//10)])
-            ax2.set_xticklabels([ch_names[i] for i in range(0, len(ch_names), max(1, len(ch_names)//10))], rotation=45)
-            ax2.grid(True, alpha=0.3)
-            
-            self.fig.tight_layout()
-            
-        except Exception as e:
-            raise Exception(f"Error plotting channel statistics: {str(e)}")
-            
-    def _plot_preprocessing_summary(self, raw, parameters):
-        """Plot preprocessing summary information (embedded matplotlib)."""
-        try:
-            self.ax.clear()
-            
-            # Get preprocessing history
-            history = getattr(self.preprocessing_pipeline, 'preprocessing_history', [])
-            
-            # Create summary text
-            summary_text = f"EEG Data Summary\n\n"
-            summary_text += f"Sampling Rate: {raw.info['sfreq']:.1f} Hz\n"
-            summary_text += f"Number of Channels: {len(raw.ch_names)}\n"
-            summary_text += f"Duration: {raw.times[-1]:.1f} seconds\n"
-            summary_text += f"Bad Channels: {len(raw.info['bads'])}\n"
-            if raw.info['bads']:
-                summary_text += f"Bad Channel Names: {', '.join(raw.info['bads'])}\n"
-            
-            summary_text += f"\n\nPreprocessing Steps Applied:\n"
-            if history:
-                for i, step in enumerate(history, 1):
-                    summary_text += f"{i}. {step}\n"
+            if plot_type == "psd":
+                return self.preprocessing_pipeline.plot_power_spectral_density(
+                    picks=parameters.get('picks', None),
+                    fmin=parameters.get('fmin', 0.5),
+                    fmax=parameters.get('fmax', 70.0),
+                    title=parameters.get('title', 'Power Spectral Density'),
+                )
+            elif plot_type == "ica_components":
+                return self.preprocessing_pipeline.plot_ica_components(
+                    components=parameters.get('components', None),
+                    title=parameters.get('title', 'ICA Components'),
+                )
             else:
-                summary_text += "No preprocessing steps applied yet.\n"
-                
-            # Display summary as text
-            self.ax.text(0.05, 0.95, summary_text, 
-                        horizontalalignment='left', verticalalignment='top',
-                        transform=self.ax.transAxes, fontsize=12,
-                        bbox=dict(boxstyle="round,pad=0.5", facecolor="lightgray", alpha=0.8))
-            
-            self.ax.set_xlim(0, 1)
-            self.ax.set_ylim(0, 1)
-            self.ax.set_xticks([])
-            self.ax.set_yticks([])
-            self.ax.set_title('Preprocessing Summary')
-            
+                return None
+
         except Exception as e:
-            raise Exception(f"Error creating preprocessing summary: {str(e)}")
-            
-    def plot_raw_data(self):
-        """Plot raw EEG data using MNE's native Qt plotting via subprocess."""
-        if not self.preprocessing_pipeline or not self.preprocessing_pipeline.raw:
-            messagebox.showwarning("Warning", "No EEG data loaded")
-            return
-            
-        try:
-            # Create a temporary file for the raw data
-            with tempfile.NamedTemporaryFile(suffix='.fif', delete=False) as tmp_file:
-                temp_filepath = tmp_file.name
-                
-            # Save the current raw data to the temporary file
-            self.preprocessing_pipeline.raw.save(temp_filepath, overwrite=True)
-            
-            # Get the path to the MNE plot helper script
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            helper_script = os.path.join(script_dir, '..', 'metrics_viewer', 'mne_plot_helper.py')
-            
-            if not os.path.exists(helper_script):
-                messagebox.showerror("Error", f"MNE plot helper script not found at: {helper_script}")
-                return
-                
-            # Build the command to run the helper script
-            cmd = [
-                sys.executable,
-                helper_script,
-                '--filepath', temp_filepath,
-                '--title', 'EEG Raw Data - Preprocessing Viewer'
-            ]
-            
-            # Start the subprocess (non-blocking)
-            subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            
-            # Note: We don't delete the temp file immediately as the subprocess needs it
-            # The OS will clean it up eventually
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to open raw data plot: {str(e)}")
-            # Clean up temp file on error
-            try:
-                if 'temp_filepath' in locals() and os.path.exists(temp_filepath):
-                    os.unlink(temp_filepath)
-            except:
-                pass
-                
-    def plot_ica_components(self):
-        """Plot ICA components using MNE's native Qt plotting."""
-        if not self.preprocessing_pipeline:
-            messagebox.showwarning("Warning", "No preprocessing pipeline loaded")
-            return
-            
-        if not hasattr(self.preprocessing_pipeline, 'ica') or self.preprocessing_pipeline.ica is None:
-            messagebox.showwarning("Warning", "ICA has not been computed yet. Run ICA first.")
-            return
-            
-        try:
-            # Use MNE's built-in ICA component plotting with non-blocking display
-            self.preprocessing_pipeline.ica.plot_components(
-                show=True,
-                title="ICA Components - Preprocessing Viewer"
-            )
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to open ICA components plot: {str(e)}")
-            
+            print(f"Error getting pipeline figure for {plot_type}: {str(e)}")
+            return None
+
+    def _show_error_message(self, message):
+        """Show error message in the plot area."""
+        # Create a simple error figure
+        self.fig.clear()
+        ax = self.fig.add_subplot(111)
+        ax.text(0.5, 0.5, message,
+                horizontalalignment='center', verticalalignment='center',
+                transform=ax.transAxes, fontsize=12, color='red')
+        ax.set_xticks([])
+        ax.set_yticks([])
+        self.canvas.draw()
+
     def refresh_plot(self):
         """Refresh the current embedded analysis plot."""
         plot_type = self.plot_type_var.get()

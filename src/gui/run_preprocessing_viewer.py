@@ -23,13 +23,13 @@ import tkinter as tk
 # Add the parent directory to the path to import the preprocessing modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from gui.preprocessing_viewer.app import PreprocessingApp
+from gui.preprocessing_viewer.app import PreprocessingViewerApp
 
 
 def main():
     """Main entry point for the preprocessing GUI."""
     root = tk.Tk()
-    app = PreprocessingApp(root)
+    app = PreprocessingViewerApp(root)
     root.mainloop()
 
 

@@ -11,20 +11,21 @@ Copyright (C) <2025>  <Soenke van Loh>
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 
-Preprocessing controls frame for EEG preprocessing GUI.
+Preprocessing frame for EEG preprocessing GUI.
 
-This module provides the GUI controls for EEG preprocessing operations.
+This module provides the PreprocessingFrame class containing all preprocessing
+controls and options.
 """
 
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk
 from typing import Callable, Dict, Any
 
 
 class PreprocessingFrame(ttk.Frame):
     """Frame containing preprocessing controls and options."""
     
-    def __init__(self, parent, step_callback: Callable, plot_callback: Callable):
+    def __init__(self, parent, step_callback: Callable, plot_callback: Callable, **kwargs):
         """
         Initialize the preprocessing frame.
         
@@ -32,8 +33,9 @@ class PreprocessingFrame(ttk.Frame):
             parent: Parent widget
             step_callback: Callback function for preprocessing steps
             plot_callback: Callback function for plot requests
+            **kwargs: Additional arguments for the Frame constructor
         """
-        super().__init__(parent)
+        super().__init__(parent, **kwargs)
         
         self.step_callback = step_callback
         self.plot_callback = plot_callback
@@ -69,7 +71,6 @@ class PreprocessingFrame(ttk.Frame):
         self.create_resampling_section(scrollable_frame)
         self.create_artifact_section(scrollable_frame)
         self.create_montage_section(scrollable_frame)
-        self.create_visualization_section(scrollable_frame)
         self.create_history_section(scrollable_frame)
         
     def create_basic_info_section(self, parent):
@@ -78,7 +79,7 @@ class PreprocessingFrame(ttk.Frame):
         info_frame.pack(fill=tk.X, padx=5, pady=5)
         
         # Info display
-        self.info_text = tk.Text(info_frame, height=4, width=50, state=tk.DISABLED)
+        self.info_text = tk.Text(info_frame, height=4, width=40, state=tk.DISABLED)
         self.info_text.pack(fill=tk.X)
         
     def create_filtering_section(self, parent):
@@ -90,10 +91,10 @@ class PreprocessingFrame(ttk.Frame):
         hp_frame = ttk.Frame(filter_frame)
         hp_frame.pack(fill=tk.X, pady=2)
         
-        ttk.Label(hp_frame, text="High-pass (Hz):").pack(side=tk.LEFT)
+        ttk.Label(hp_frame, text="High-pass (Hz):").pack(anchor=tk.W)
         self.hp_var = tk.DoubleVar(value=0.5)
         hp_entry = ttk.Entry(hp_frame, textvariable=self.hp_var, width=10)
-        hp_entry.pack(side=tk.LEFT, padx=5)
+        hp_entry.pack(anchor=tk.W, pady=2)
         
         self.hp_button = ttk.Button(
             hp_frame, 
@@ -101,16 +102,16 @@ class PreprocessingFrame(ttk.Frame):
             command=self.apply_highpass_filter,
             state=tk.DISABLED
         )
-        self.hp_button.pack(side=tk.LEFT, padx=5)
+        self.hp_button.pack(anchor=tk.W, pady=2)
         
         # Low-pass filter
         lp_frame = ttk.Frame(filter_frame)
-        lp_frame.pack(fill=tk.X, pady=2)
+        lp_frame.pack(fill=tk.X, pady=5)
         
-        ttk.Label(lp_frame, text="Low-pass (Hz):").pack(side=tk.LEFT)
+        ttk.Label(lp_frame, text="Low-pass (Hz):").pack(anchor=tk.W)
         self.lp_var = tk.DoubleVar(value=50.0)
         lp_entry = ttk.Entry(lp_frame, textvariable=self.lp_var, width=10)
-        lp_entry.pack(side=tk.LEFT, padx=5)
+        lp_entry.pack(anchor=tk.W, pady=2)
         
         self.lp_button = ttk.Button(
             lp_frame, 
@@ -118,16 +119,16 @@ class PreprocessingFrame(ttk.Frame):
             command=self.apply_lowpass_filter,
             state=tk.DISABLED
         )
-        self.lp_button.pack(side=tk.LEFT, padx=5)
+        self.lp_button.pack(anchor=tk.W, pady=2)
         
         # Notch filter
         notch_frame = ttk.Frame(filter_frame)
-        notch_frame.pack(fill=tk.X, pady=2)
+        notch_frame.pack(fill=tk.X, pady=5)
         
-        ttk.Label(notch_frame, text="Notch (Hz):").pack(side=tk.LEFT)
+        ttk.Label(notch_frame, text="Notch (Hz):").pack(anchor=tk.W)
         self.notch_var = tk.DoubleVar(value=50.0)
         notch_entry = ttk.Entry(notch_frame, textvariable=self.notch_var, width=10)
-        notch_entry.pack(side=tk.LEFT, padx=5)
+        notch_entry.pack(anchor=tk.W, pady=2)
         
         self.notch_button = ttk.Button(
             notch_frame, 
@@ -135,17 +136,17 @@ class PreprocessingFrame(ttk.Frame):
             command=self.apply_notch_filter,
             state=tk.DISABLED
         )
-        self.notch_button.pack(side=tk.LEFT, padx=5)
+        self.notch_button.pack(anchor=tk.W, pady=2)
         
     def create_resampling_section(self, parent):
         """Create resampling controls section."""
         resample_frame = ttk.LabelFrame(parent, text="Resampling", padding=10)
         resample_frame.pack(fill=tk.X, padx=5, pady=5)
         
-        ttk.Label(resample_frame, text="New sampling rate (Hz):").pack(side=tk.LEFT)
+        ttk.Label(resample_frame, text="New sampling rate (Hz):").pack(anchor=tk.W)
         self.resample_var = tk.DoubleVar(value=250.0)
         resample_entry = ttk.Entry(resample_frame, textvariable=self.resample_var, width=10)
-        resample_entry.pack(side=tk.LEFT, padx=5)
+        resample_entry.pack(anchor=tk.W, pady=2)
         
         self.resample_button = ttk.Button(
             resample_frame, 
@@ -153,7 +154,7 @@ class PreprocessingFrame(ttk.Frame):
             command=self.apply_resampling,
             state=tk.DISABLED
         )
-        self.resample_button.pack(side=tk.LEFT, padx=5)
+        self.resample_button.pack(anchor=tk.W, pady=2)
         
     def create_artifact_section(self, parent):
         """Create artifact removal section."""
@@ -161,28 +162,30 @@ class PreprocessingFrame(ttk.Frame):
         artifact_frame.pack(fill=tk.X, padx=5, pady=5)
         
         # Bad channel detection
-        bad_ch_frame = ttk.Frame(artifact_frame)
-        bad_ch_frame.pack(fill=tk.X, pady=2)
-        
         self.bad_ch_button = ttk.Button(
-            bad_ch_frame, 
+            artifact_frame, 
             text="Detect Bad Channels", 
             command=self.detect_bad_channels,
             state=tk.DISABLED
         )
-        self.bad_ch_button.pack(side=tk.LEFT, padx=5)
+        self.bad_ch_button.pack(anchor=tk.W, pady=2)
         
-        # ICA
-        ica_frame = ttk.Frame(artifact_frame)
-        ica_frame.pack(fill=tk.X, pady=2)
-        
-        self.ica_button = ttk.Button(
-            ica_frame, 
-            text="Run ICA", 
-            command=self.run_ica,
+        # ICA - Split into two buttons
+        self.fit_ica_button = ttk.Button(
+            artifact_frame, 
+            text="Fit ICA", 
+            command=self.fit_ica,
             state=tk.DISABLED
         )
-        self.ica_button.pack(side=tk.LEFT, padx=5)
+        self.fit_ica_button.pack(anchor=tk.W, pady=2)
+        
+        self.apply_ica_button = ttk.Button(
+            artifact_frame, 
+            text="Apply ICA", 
+            command=self.apply_ica,
+            state=tk.DISABLED
+        )
+        self.apply_ica_button.pack(anchor=tk.W, pady=2)
         
     def create_montage_section(self, parent):
         """Create montage controls section."""
@@ -190,65 +193,24 @@ class PreprocessingFrame(ttk.Frame):
         montage_frame.pack(fill=tk.X, padx=5, pady=5)
         
         # Montage selection
-        montage_sel_frame = ttk.Frame(montage_frame)
-        montage_sel_frame.pack(fill=tk.X, pady=2)
-        
-        ttk.Label(montage_sel_frame, text="Montage:").pack(side=tk.LEFT)
+        ttk.Label(montage_frame, text="Montage:").pack(anchor=tk.W)
         self.montage_var = tk.StringVar(value="standard_1020")
         montage_combo = ttk.Combobox(
-            montage_sel_frame, 
+            montage_frame, 
             textvariable=self.montage_var,
             values=["standard_1020", "standard_1005", "biosemi64", "biosemi128"],
-            state="readonly"
+            state="readonly",
+            width=15
         )
-        montage_combo.pack(side=tk.LEFT, padx=5)
+        montage_combo.pack(anchor=tk.W, pady=2)
         
         self.montage_button = ttk.Button(
-            montage_sel_frame, 
+            montage_frame, 
             text="Set Montage", 
             command=self.set_montage,
             state=tk.DISABLED
         )
-        self.montage_button.pack(side=tk.LEFT, padx=5)
-        
-    def create_visualization_section(self, parent):
-        """Create visualization controls section."""
-        viz_frame = ttk.LabelFrame(parent, text="Visualization", padding=10)
-        viz_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        # Plot parameters
-        plot_params_frame = ttk.Frame(viz_frame)
-        plot_params_frame.pack(fill=tk.X, pady=2)
-        
-        ttk.Label(plot_params_frame, text="Duration (s):").pack(side=tk.LEFT)
-        self.duration_var = tk.DoubleVar(value=20.0)
-        duration_entry = ttk.Entry(plot_params_frame, textvariable=self.duration_var, width=8)
-        duration_entry.pack(side=tk.LEFT, padx=5)
-        
-        ttk.Label(plot_params_frame, text="Channels:").pack(side=tk.LEFT, padx=(10, 0))
-        self.n_channels_var = tk.IntVar(value=20)
-        channels_entry = ttk.Entry(plot_params_frame, textvariable=self.n_channels_var, width=8)
-        channels_entry.pack(side=tk.LEFT, padx=5)
-        
-        # Plot buttons
-        plot_buttons_frame = ttk.Frame(viz_frame)
-        plot_buttons_frame.pack(fill=tk.X, pady=5)
-        
-        self.plot_raw_button = ttk.Button(
-            plot_buttons_frame, 
-            text="Plot Raw Data", 
-            command=self.plot_raw_data,
-            state=tk.DISABLED
-        )
-        self.plot_raw_button.pack(side=tk.LEFT, padx=5)
-        
-        self.plot_psd_button = ttk.Button(
-            plot_buttons_frame, 
-            text="Plot PSD", 
-            command=self.plot_psd,
-            state=tk.DISABLED
-        )
-        self.plot_psd_button.pack(side=tk.LEFT, padx=5)
+        self.montage_button.pack(anchor=tk.W, pady=2)
         
     def create_history_section(self, parent):
         """Create preprocessing history section."""
@@ -259,7 +221,7 @@ class PreprocessingFrame(ttk.Frame):
         list_frame = ttk.Frame(history_frame)
         list_frame.pack(fill=tk.BOTH, expand=True)
         
-        self.history_listbox = tk.Listbox(list_frame)
+        self.history_listbox = tk.Listbox(list_frame, height=6)
         history_scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.history_listbox.yview)
         self.history_listbox.configure(yscrollcommand=history_scrollbar.set)
         
@@ -273,52 +235,12 @@ class PreprocessingFrame(ttk.Frame):
         # Enable all buttons
         buttons = [
             self.hp_button, self.lp_button, self.notch_button,
-            self.resample_button, self.bad_ch_button, self.ica_button,
-            self.montage_button, self.plot_raw_button, self.plot_psd_button
+            self.resample_button, self.bad_ch_button, self.fit_ica_button,
+            self.apply_ica_button, self.montage_button
         ]
         
         for button in buttons:
             button.config(state=tk.NORMAL)
-            
-    def apply_preprocessing_step(self, pipeline, step_name: str, parameters: Dict[str, Any]) -> bool:
-        """
-        Apply a preprocessing step to the pipeline.
-        
-        Args:
-            pipeline: The preprocessing pipeline
-            step_name: Name of the preprocessing step
-            parameters: Parameters for the step
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        try:
-            if step_name == "highpass":
-                pipeline.apply_filter(l_freq=parameters["freq"], h_freq=None)
-            elif step_name == "lowpass":
-                pipeline.apply_filter(l_freq=None, h_freq=parameters["freq"])
-            elif step_name == "notch":
-                pipeline.apply_notch_filter(freqs=parameters["freq"])
-            elif step_name == "resample":
-                pipeline.resample(sfreq=parameters["sfreq"])
-            elif step_name == "fit_montage":
-                pipeline.fit_montage(montage=parameters["montage"])
-            elif step_name == "detect_bad_channels":
-                pipeline.detect_bad_channels()
-            elif step_name == "run_ica":
-                pipeline.run_ica()
-            else:
-                return False
-                
-            # Update history
-            self.update_history(pipeline.preprocessing_history)
-            self.update_info_display(pipeline)
-            
-            return True
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to apply {step_name}: {str(e)}")
-            return False
             
     def update_history(self, history_list):
         """Update the preprocessing history display."""
@@ -366,24 +288,17 @@ class PreprocessingFrame(ttk.Frame):
         """Detect bad channels."""
         self.step_callback("detect_bad_channels", {})
         
-    def run_ica(self):
-        """Run ICA."""
-        self.step_callback("run_ica", {})
+    def fit_ica(self):
+        """Fit ICA and plot sources."""
+        self.step_callback("fit_ica", {})
+        # Request plotting of ICA sources after fitting
+        self.plot_callback("ica_components", {})
+
+    def apply_ica(self):
+        """Apply ICA to remove selected components."""
+        self.step_callback("apply_ica", {})
         
     def set_montage(self):
         """Set montage."""
         montage = self.montage_var.get()
         self.step_callback("fit_montage", {"montage": montage})
-        
-    def plot_raw_data(self):
-        """Plot raw EEG data."""
-        parameters = {
-            "duration": self.duration_var.get(),
-            "n_channels": self.n_channels_var.get(),
-            "start": 0
-        }
-        self.plot_callback("raw", parameters)
-        
-    def plot_psd(self):
-        """Plot power spectral density."""
-        self.plot_callback("psd", {})

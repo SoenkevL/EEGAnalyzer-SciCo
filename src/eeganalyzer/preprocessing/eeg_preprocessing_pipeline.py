@@ -13,6 +13,7 @@ from .PreprocessingFunctions import *
 import re
 from mne.preprocessing import ICA, create_ecg_epochs, create_eog_epochs
 from typing import Dict, List, Optional, Tuple, Union, Any
+import matplotlib.pyplot as plt
 
 
 # Configure MNE settings
@@ -79,7 +80,7 @@ class EEGPreprocessor:
         except Exception as e:
             raise ValueError(f"Failed to load data from {self.filepath}: {str(e)}")
     
-    def categorize_channels(self) -> Dict[str, List[str]]:
+    def categorize_channels(self, mark_unclassified_as_bad = False) -> Dict[str, List[str]]:
         """
         Automatically categorize channels using regex patterns.
         
@@ -146,6 +147,9 @@ class EEGPreprocessor:
             self.channel_categories['UNCLASSIFIED'] = unclassified
         
         self.preprocessing_history.append("Categorized channels")
+        if mark_unclassified_as_bad:
+            self.mark_bad_channels(unclassified)
+            self.preprocessing_history.append("Marked unclassified channels as bad")
         return self.channel_categories
     
     def print_channel_info(self) -> None:
@@ -230,7 +234,8 @@ class EEGPreprocessor:
             return None
 
     def plot_power_spectral_density(self, picks: Optional[Union[str, List[str]]] = None,
-                                   fmin: float = 0.5, fmax: float = 50.0, title: Optional[str] = None) -> None:
+                                    fmin: float = 0.5, fmax: float = 50.0, title: Optional[str] = None,
+                                    show=False) -> plt.figure:
         """
         Plot power spectral density of the data.
         
@@ -244,6 +249,8 @@ class EEGPreprocessor:
             Maximum frequency to display
         title: str, optional
             title of the plot
+        show: bool, default=False
+            if the plot should be shown
         Returns
         -------
         None
@@ -261,9 +268,10 @@ class EEGPreprocessor:
                 show=False
             )
             psd_fig.suptitle(title)
-            psd_fig.show()
+            if show:
+                psd_fig.show()
             self.preprocessing_history.append(f"Plotted PSD (fmin={fmin}, fmax={fmax})")
-            return None
+            return psd_fig
                 
         except Exception as e:
             print(f"Error plotting PSD: {str(e)}")
@@ -349,7 +357,8 @@ class EEGPreprocessor:
         return artifacts
     
     def fit_ica(self, n_components: Optional[int] = None, picks: Optional[Union[str, List[str]]] = None,
-               t_min: Optional[float] = 0, crop_duration: Optional[float] = None, filter_kwargs: Optional[Dict[str, Any]] = None, plot_block=False,
+               t_min: Optional[float] = 0, crop_duration: Optional[float] = None, filter_kwargs: Optional[Dict[str, Any]] = None,
+                plot_eeg = False, plot_block=False,
                 random_state: int = 42) -> None:
         """
         Fit Independent Component Analysis (ICA) for artifact removal.
@@ -385,7 +394,8 @@ class EEGPreprocessor:
         if filter_kwargs:
             raw_for_ica.filter(**filter_kwargs)
 
-        raw_for_ica.plot(block=plot_block, title='EEG used for ica fitting')
+        if plot_eeg:
+            raw_for_ica.plot(block=plot_block, title='EEG used for ica fitting')
 
         # Determine number of components
         if n_components is None:
@@ -416,9 +426,9 @@ class EEGPreprocessor:
             self.ica = None
 
     def plot_ica_components(self, components: Optional[List[int]] = None,
-                           title: Optional[str] = None) -> None:
+                           title: Optional[str] = None, show=False) -> plt.figure:
         """
-        Plot ICA components for inspection.
+        Plot spatial ICA components for inspection.
 
         Parameters
         ----------
@@ -428,6 +438,8 @@ class EEGPreprocessor:
             Name for the process (auto-generated if not provided)
         title: str, optional
             Title for the plot
+        show: bool, default=False
+            If the plot should be shown
             
         Returns
         -------
@@ -439,16 +451,16 @@ class EEGPreprocessor:
         
         try:
             if components is not None:
-                self.ica.plot_components(picks=components, show=True, title=title)
+                fig = self.ica.plot_components(picks=components, show=show, title=title)
             else:
-                self.ica.plot_components(show=True, title=title)
-            return None
+                fig = self.ica.plot_components(show=show, title=title)
+            return fig
                 
         except Exception as e:
             print(f"Error plotting ICA components: {str(e)}")
             return None
 
-    def plot_ica_sources(self, duration: float = 10.0, start: float = 0.0, block=True) -> None:
+    def plot_ica_sources(self, duration: int = 10, start: int = 0, block=True) -> None:
         """
         Plot ICA sources time series.
         
@@ -470,9 +482,7 @@ class EEGPreprocessor:
             return None
         
         try:
-            raw_crop = self.raw.copy().crop(tmin=start, tmax=start + duration)
-            
-            self.ica.plot_sources(raw_crop, show=True, block=block)
+            self.ica.plot_sources(self.raw, start=start, stop=start+duration, show=True, block=block)
             return None
                 
         except Exception as e:
@@ -520,15 +530,34 @@ class EEGPreprocessor:
         except Exception as e:
             print(f"Error applying ICA: {str(e)}")
 
-    def run_ica(self):
+    def run_ica_fitting(self):
         # Fit ICA
         print("\n9. Fitting ICA...")
         ica_channels = [self.channel_categories.get(category, []) for category in ['EEG', 'EMG', 'ECG', 'EOG']]
         ica_channels = [channel for sublist in ica_channels for channel in sublist]
         self.fit_ica(n_components=15, crop_duration=60,
-                             picks=ica_channels
-                             )
+                     picks=ica_channels,
+                     filter_kwargs={
+                         'l_freq': 1,
+                         'h_freq': 40,
+                        }
+                     )
+    def run_ica_selection(self, apply=True):
+        # Plot ICA components with multiprocessing
+        if self.ica is not None:
+            self.plot_ica_sources(duration=60)
+            # Remove ica components that were excluded
+            if apply:
+                self.apply_ica()
 
+    def run_full_ica(self):
+        # Fit ICA
+        print("\n9. Fitting ICA...")
+        ica_channels = [self.channel_categories.get(category, []) for category in ['EEG', 'EMG', 'ECG', 'EOG']]
+        ica_channels = [channel for sublist in ica_channels for channel in sublist]
+        self.fit_ica(n_components=15, crop_duration=60,
+                     picks=ica_channels
+                     )
         # Plot ICA components with multiprocessing
         if self.ica is not None:
             print("\n10. Plotting ICA components...")
