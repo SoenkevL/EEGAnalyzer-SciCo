@@ -79,6 +79,29 @@ class PreprocessingPlotFrame(ttk.Frame):
         )
         refresh_button.pack(side=tk.LEFT, padx=5)
         
+        # Separator
+        separator = ttk.Separator(control_frame, orient='vertical')
+        separator.pack(side=tk.LEFT, fill='y', padx=10)
+        
+        # Direct view buttons
+        ttk.Label(control_frame, text="Direct Views:").pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.plot_raw_button = ttk.Button(
+            control_frame,
+            text="Raw Data",
+            command=self.plot_raw_data_direct,
+            state=tk.DISABLED
+        )
+        self.plot_raw_button.pack(side=tk.LEFT, padx=2)
+        
+        self.plot_ica_sources_button = ttk.Button(
+            control_frame,
+            text="ICA Sources",
+            command=self.plot_ica_sources_direct,
+            state=tk.DISABLED
+        )
+        self.plot_ica_sources_button.pack(side=tk.LEFT, padx=2)
+        
         # Create matplotlib frame
         self.create_matplotlib_frame()
         
@@ -103,7 +126,7 @@ class PreprocessingPlotFrame(ttk.Frame):
         # The toolbar will automatically pack itself within toolbar_frame
         
         # Initial empty plot
-        self.ax.text(0.5, 0.5, 'Load EEG data to view analysis plots\n\nUse View menu for raw data and direct MNE plots', 
+        self.ax.text(0.5, 0.5, 'Load EEG data to view analysis plots\n\nUse direct view buttons for raw data and ICA plots', 
                     horizontalalignment='center', verticalalignment='center',
                     transform=self.ax.transAxes, fontsize=12, alpha=0.7)
         self.ax.set_xticks([])
@@ -117,6 +140,9 @@ class PreprocessingPlotFrame(ttk.Frame):
             pipeline: EEGPreprocessingPipeline instance
         """
         self.preprocessing_pipeline = pipeline
+        # Enable direct view buttons when pipeline is set
+        self.plot_raw_button.config(state=tk.NORMAL)
+        self.plot_ica_sources_button.config(state=tk.NORMAL)
         self.refresh_initial_plot()
         
     def refresh_initial_plot(self):
@@ -239,3 +265,36 @@ class PreprocessingPlotFrame(ttk.Frame):
     def update_plot(self):
         """Update the plot after preprocessing steps."""
         self.refresh_plot()
+        
+    # Direct plotting methods (moved from app.py)
+    def plot_raw_data_direct(self):
+        """Plot raw data directly through pipeline."""
+        if not self.preprocessing_pipeline:
+            messagebox.showwarning("Warning", "No data loaded")
+            return
+            
+        try:
+            self.preprocessing_pipeline.plot_eeg_data(
+                duration=20.0,
+                n_channels=20,
+                start=0.0,
+                block=True,
+                title="Raw EEG Data"
+            )
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to plot raw data: {str(e)}")
+            
+    def plot_ica_sources_direct(self):
+        """Plot ICA sources directly through pipeline."""
+        if not self.preprocessing_pipeline:
+            messagebox.showwarning("Warning", "No data loaded")
+            return
+            
+        if not hasattr(self.preprocessing_pipeline, 'ica') or self.preprocessing_pipeline.ica is None:
+            messagebox.showwarning("Warning", "ICA has not been computed yet. Run ICA first.")
+            return
+            
+        try:
+            self.preprocessing_pipeline.plot_ica_sources()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to plot ICA sources: {str(e)}")

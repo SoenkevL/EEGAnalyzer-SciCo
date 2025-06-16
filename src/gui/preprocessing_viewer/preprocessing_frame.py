@@ -67,10 +67,10 @@ class PreprocessingFrame(ttk.Frame):
         
         # Create preprocessing sections
         self.create_basic_info_section(scrollable_frame)
+        self.create_montage_section(scrollable_frame)
         self.create_filtering_section(scrollable_frame)
         self.create_resampling_section(scrollable_frame)
         self.create_artifact_section(scrollable_frame)
-        self.create_montage_section(scrollable_frame)
         self.create_history_section(scrollable_frame)
         
     def create_basic_info_section(self, parent):
@@ -91,70 +91,88 @@ class PreprocessingFrame(ttk.Frame):
         hp_frame = ttk.Frame(filter_frame)
         hp_frame.pack(fill=tk.X, pady=2)
         
-        ttk.Label(hp_frame, text="High-pass (Hz):").pack(anchor=tk.W)
+        # Create horizontal layout with grid
+        hp_frame.grid_columnconfigure(1, weight=1)
+        
+        ttk.Label(hp_frame, text="High-pass (Hz):").grid(row=0, column=0, sticky="w", padx=(0, 5))
         self.hp_var = tk.DoubleVar(value=0.5)
-        hp_entry = ttk.Entry(hp_frame, textvariable=self.hp_var, width=10)
-        hp_entry.pack(anchor=tk.W, pady=2)
+        hp_entry = ttk.Entry(hp_frame, textvariable=self.hp_var, width=8)
+        hp_entry.grid(row=0, column=1, sticky="w", padx=(0, 5))
         
         self.hp_button = ttk.Button(
             hp_frame, 
-            text="Apply High-pass", 
+            text="Apply", 
             command=self.apply_highpass_filter,
-            state=tk.DISABLED
+            state=tk.DISABLED,
+            width=8
         )
-        self.hp_button.pack(anchor=tk.W, pady=2)
+        self.hp_button.grid(row=0, column=2, sticky="w")
         
         # Low-pass filter
         lp_frame = ttk.Frame(filter_frame)
-        lp_frame.pack(fill=tk.X, pady=5)
+        lp_frame.pack(fill=tk.X, pady=2)
         
-        ttk.Label(lp_frame, text="Low-pass (Hz):").pack(anchor=tk.W)
+        # Create horizontal layout with grid
+        lp_frame.grid_columnconfigure(1, weight=1)
+        
+        ttk.Label(lp_frame, text="Low-pass (Hz):").grid(row=0, column=0, sticky="w", padx=(0, 5))
         self.lp_var = tk.DoubleVar(value=50.0)
-        lp_entry = ttk.Entry(lp_frame, textvariable=self.lp_var, width=10)
-        lp_entry.pack(anchor=tk.W, pady=2)
+        lp_entry = ttk.Entry(lp_frame, textvariable=self.lp_var, width=8)
+        lp_entry.grid(row=0, column=1, sticky="w", padx=(0, 5))
         
         self.lp_button = ttk.Button(
             lp_frame, 
-            text="Apply Low-pass", 
+            text="Apply", 
             command=self.apply_lowpass_filter,
-            state=tk.DISABLED
+            state=tk.DISABLED,
+            width=8
         )
-        self.lp_button.pack(anchor=tk.W, pady=2)
+        self.lp_button.grid(row=0, column=2, sticky="w")
         
-        # Notch filter
-        notch_frame = ttk.Frame(filter_frame)
-        notch_frame.pack(fill=tk.X, pady=5)
-        
-        ttk.Label(notch_frame, text="Notch (Hz):").pack(anchor=tk.W)
-        self.notch_var = tk.DoubleVar(value=50.0)
-        notch_entry = ttk.Entry(notch_frame, textvariable=self.notch_var, width=10)
-        notch_entry.pack(anchor=tk.W, pady=2)
-        
-        self.notch_button = ttk.Button(
-            notch_frame, 
-            text="Apply Notch", 
-            command=self.apply_notch_filter,
-            state=tk.DISABLED
-        )
-        self.notch_button.pack(anchor=tk.W, pady=2)
+        # # Notch filter
+        # notch_frame = ttk.Frame(filter_frame)
+        # notch_frame.pack(fill=tk.X, pady=2)
+        #
+        # # Create horizontal layout with grid
+        # notch_frame.grid_columnconfigure(1, weight=1)
+        #
+        # ttk.Label(notch_frame, text="Notch (Hz):").grid(row=0, column=0, sticky="w", padx=(0, 5))
+        # self.notch_var = tk.DoubleVar(value=50.0)
+        # notch_entry = ttk.Entry(notch_frame, textvariable=self.notch_var, width=8)
+        # notch_entry.grid(row=0, column=1, sticky="w", padx=(0, 5))
+        #
+        # self.notch_button = ttk.Button(
+        #     notch_frame,
+        #     text="Apply",
+        #     command=self.apply_notch_filter,
+        #     state=tk.DISABLED,
+        #     width=8
+        # )
+        # self.notch_button.grid(row=0, column=2, sticky="w")
         
     def create_resampling_section(self, parent):
         """Create resampling controls section."""
         resample_frame = ttk.LabelFrame(parent, text="Resampling", padding=10)
         resample_frame.pack(fill=tk.X, padx=5, pady=5)
         
-        ttk.Label(resample_frame, text="New sampling rate (Hz):").pack(anchor=tk.W)
+        # Create horizontal layout
+        controls_frame = ttk.Frame(resample_frame)
+        controls_frame.pack(fill=tk.X)
+        controls_frame.grid_columnconfigure(1, weight=1)
+        
+        ttk.Label(controls_frame, text="Sampling rate (Hz):").grid(row=0, column=0, sticky="w", padx=(0, 5))
         self.resample_var = tk.DoubleVar(value=250.0)
-        resample_entry = ttk.Entry(resample_frame, textvariable=self.resample_var, width=10)
-        resample_entry.pack(anchor=tk.W, pady=2)
+        resample_entry = ttk.Entry(controls_frame, textvariable=self.resample_var, width=8)
+        resample_entry.grid(row=0, column=1, sticky="w", padx=(0, 5))
         
         self.resample_button = ttk.Button(
-            resample_frame, 
-            text="Resample", 
+            controls_frame, 
+            text="Apply", 
             command=self.apply_resampling,
-            state=tk.DISABLED
+            state=tk.DISABLED,
+            width=8
         )
-        self.resample_button.pack(anchor=tk.W, pady=2)
+        self.resample_button.grid(row=0, column=2, sticky="w")
         
     def create_artifact_section(self, parent):
         """Create artifact removal section."""
@@ -170,47 +188,57 @@ class PreprocessingFrame(ttk.Frame):
         )
         self.bad_ch_button.pack(anchor=tk.W, pady=2)
         
-        # ICA - Split into two buttons
+        # ICA controls in horizontal layout
+        ica_frame = ttk.Frame(artifact_frame)
+        ica_frame.pack(fill=tk.X, pady=2)
+        
         self.fit_ica_button = ttk.Button(
-            artifact_frame, 
+            ica_frame, 
             text="Fit ICA", 
             command=self.fit_ica,
-            state=tk.DISABLED
+            state=tk.DISABLED,
+            width=12
         )
-        self.fit_ica_button.pack(anchor=tk.W, pady=2)
+        self.fit_ica_button.pack(side=tk.LEFT, padx=(0, 5))
         
         self.apply_ica_button = ttk.Button(
-            artifact_frame, 
+            ica_frame, 
             text="Apply ICA", 
             command=self.apply_ica,
-            state=tk.DISABLED
+            state=tk.DISABLED,
+            width=12
         )
-        self.apply_ica_button.pack(anchor=tk.W, pady=2)
+        self.apply_ica_button.pack(side=tk.LEFT)
         
     def create_montage_section(self, parent):
         """Create montage controls section."""
         montage_frame = ttk.LabelFrame(parent, text="Montage & Channels", padding=10)
         montage_frame.pack(fill=tk.X, padx=5, pady=5)
         
-        # Montage selection
-        ttk.Label(montage_frame, text="Montage:").pack(anchor=tk.W)
+        # Create horizontal layout
+        controls_frame = ttk.Frame(montage_frame)
+        controls_frame.pack(fill=tk.X)
+        controls_frame.grid_columnconfigure(1, weight=1)
+        
+        ttk.Label(controls_frame, text="Montage:").grid(row=0, column=0, sticky="w", padx=(0, 5))
         self.montage_var = tk.StringVar(value="standard_1020")
         montage_combo = ttk.Combobox(
-            montage_frame, 
+            controls_frame, 
             textvariable=self.montage_var,
             values=["standard_1020", "standard_1005", "biosemi64", "biosemi128"],
             state="readonly",
-            width=15
+            width=12
         )
-        montage_combo.pack(anchor=tk.W, pady=2)
+        montage_combo.grid(row=0, column=1, sticky="w", padx=(0, 5))
         
         self.montage_button = ttk.Button(
-            montage_frame, 
-            text="Set Montage", 
+            controls_frame, 
+            text="Apply", 
             command=self.set_montage,
-            state=tk.DISABLED
+            state=tk.DISABLED,
+            width=8
         )
-        self.montage_button.pack(anchor=tk.W, pady=2)
+        self.montage_button.grid(row=0, column=2, sticky="w")
         
     def create_history_section(self, parent):
         """Create preprocessing history section."""
