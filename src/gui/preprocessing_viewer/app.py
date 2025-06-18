@@ -128,6 +128,9 @@ class PreprocessingViewerApp:
 
                 # create channel categories
                 self.preprocessing_pipeline.categorize_channels(mark_unclassified_as_bad=True)
+
+                # Mark flat channels as bad
+                self.preprocessing_pipeline.mark_bad_channels(self.preprocessing_pipeline.find_flat_channels_psd())
                 
                 # Update status
                 self.status_var.set(f"Loaded: {os.path.basename(file_path)}")
