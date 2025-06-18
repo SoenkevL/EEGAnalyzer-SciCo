@@ -326,38 +326,58 @@ class EEGPreprocessor:
         except Exception as e:
             print(f"Error resampling data: {str(e)}")
 
-    def mark_flat_channels(self, t_min_sec_flat=None, t_min_ratio_flat=0.5) -> List:
+    def find_flat_channels_psd(self, f_ratio_flat = 0.5, l_freq=1, h_freq=40, show=False) -> List:
         """
-        Marks channels as flat based on certain specified criteria. Flat channels are those where the
-        signal does not vary significantly over a given minimum duration or exhibits low variance.
+        Identifies channels with flat frequency power spectrum in EEG data.
+
+        This method processes raw EEG data to identify channels having a flat
+        power spectral density (PSD). It applies a bandpass filter to the data,
+        computes the PSD, and compares frequency power values for each channel
+        against the median power across frequencies. Channels with a sufficiently
+        high proportion of frequency bins showing power below a threshold are
+        considered flat channels.
 
         Parameters:
-        t_min_sec_flat: float, optional
-            The minimum duration in seconds for which a channel must remain flat to be marked as such.
-            If None, the entire duration is considered.
-        t_min_ratio_flat: float, optional
-            The minimum ratio of the signal's variance to the maximum variance across all
-            channels required before marking as flat. Defaults to 0.5.
+        f_ratio_flat: float
+            The fraction of frequency bins that must have power below the specified
+            threshold for a channel to be marked as flat. Default is 0.5.
 
         Returns:
         List
-            A list of flat channels identified based on the criteria provided.
+            A list of names of the channels identified as flat.
         """
+        temp_raw = self.raw.copy()
+        temp_raw = temp_raw.filter(l_freq=l_freq, h_freq=h_freq)
+        spectrum = temp_raw.compute_psd(fmax=h_freq+5)
+        if show:
+            spectrum.plot()
+        spectral_data = spectrum.get_data()
+        median_power_per_freq = np.median(spectral_data, axis=0)
+        flat_freqs = np.zeros_like(spectral_data)
+        for i, row in enumerate(spectral_data):
+           flat_freqs[i] = row < median_power_per_freq/20
+        number_freq_bins = flat_freqs.shape[1]
+        mark_channel_names = []
+        for i, row in enumerate(flat_freqs):
+            if np.sum(row) >= number_freq_bins*f_ratio_flat:
+                mark_channel_names.append(spectrum.ch_names[i])
+        return mark_channel_names
 
 
-    
+
+
     def detect_artifacts_automatic(self, ecg_channel: Optional[str]=None,
                                    eog_channels: Optional[Union[str | list[str]]]=None) -> Dict[str, List]:
         """
         Automatically detect ECG and EOG artifacts.
-        
+
         Returns
         -------
         dict
             Dictionary containing detected artifacts
         """
         artifacts = {'ecg_events': [], 'eog_events': []}
-        
+
         # Try to find ECG artifacts
         try:
             ecg_epochs = create_ecg_epochs(self.raw, ch_name=ecg_channel, reject=None)
@@ -365,7 +385,7 @@ class EEGPreprocessor:
             print(f"Detected {len(ecg_epochs.events)} ECG events")
         except Exception as e:
             print(f"Could not detect ECG artifacts: {str(e)}")
-        
+
         # Try to find EOG artifacts
         try:
             eog_epochs = create_eog_epochs(self.raw, ch_name=eog_channels, reject=None)
@@ -768,6 +788,7 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     #     theme='light'
     # )
 
+
     # Montage
     print('\n Setting up montage for the eeg, using a standard montage from mne')
     montage_name= 'standard_1020'
@@ -786,6 +807,10 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
 
     # Mark unclassified channels as bad
     preprocessor.mark_bad_channels(preprocessor.channel_categories.get('UNCLASSIFIED', []))
+
+    # Mark flat channels as bad
+    flat_channels = preprocessor.find_flat_channels_psd()
+    preprocessor.mark_bad_channels(flat_channels)
 
     # Show filtered data
     print("\n1. Initial data inspection filtered within neurologically relevant sections for scalp eeg")
