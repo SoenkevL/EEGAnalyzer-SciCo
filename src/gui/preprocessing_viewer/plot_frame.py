@@ -21,6 +21,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from gui.preprocessing_viewer.ica_properties_popup_window import ICAPropertiesPopup
 import numpy as np
 
 
@@ -110,45 +111,67 @@ class PreprocessingPlotFrame(ttk.Frame):
         # Create matplotlib figure
         self.fig = plt.Figure(figsize=(10, 6), dpi=100)
         self.ax = self.fig.add_subplot(111)
-
+        
         # Create canvas
         self.canvas = FigureCanvasTkAgg(self.fig, self)
         self.canvas.draw()
-        self.canvas.get_tk_widget().grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
-
-        # Connect event handlers
-        self.setup_event_handlers()
-
+        canvas_widget = self.canvas.get_tk_widget()
+        canvas_widget.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+        
+        # Make canvas focusable and set focus
+        canvas_widget.configure(highlightthickness=1)
+        canvas_widget.focus_set()
+        
         # Create a separate frame for the toolbar to avoid geometry manager conflicts
         toolbar_frame = ttk.Frame(self)
         toolbar_frame.grid(row=2, column=0, sticky="ew", padx=5)
-
+        
         # Create toolbar in the separate frame
         toolbar = NavigationToolbar2Tk(self.canvas, toolbar_frame)
         toolbar.update()
-        # The toolbar will automatically pack itself within toolbar_frame
-
+        
         # Initial empty plot
-        self.ax.text(0.5, 0.5, 'Load EEG data to view analysis plots\n\nUse direct view buttons for raw data and ICA plots',
-                     horizontalalignment='center', verticalalignment='center',
-                     transform=self.ax.transAxes, fontsize=12, alpha=0.7)
+        self.ax.text(0.5, 0.5, 'Load EEG data to view analysis plots\n\nUse direct view buttons for raw data and ICA plots', 
+                    horizontalalignment='center', verticalalignment='center',
+                    transform=self.ax.transAxes, fontsize=12, alpha=0.7)
         self.ax.set_xticks([])
         self.ax.set_yticks([])
-
+        
+        # Set up event handlers AFTER canvas is created and configured
+        self.setup_event_handlers()
 
     def setup_event_handlers(self):
         """Set up matplotlib event handlers for the canvas."""
         # Connect mouse click events
-        self.canvas.mpl_connect('button_press_event', self.on_mouse_click)
-        self.canvas.mpl_connect('button_release_event', self.on_mouse_release)
-        self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
+        # self.canvas.mpl_connect('button_press_event', self.on_mouse_click)
+        # self.canvas.mpl_connect('button_release_event', self.on_mouse_release)
+        # self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
 
-        # Store event connection IDs for potential disconnection later
-        self.event_connections = {
-            'click': self.canvas.mpl_connect('button_press_event', self.on_mouse_click),
-            'release': self.canvas.mpl_connect('button_release_event', self.on_mouse_release),
-            'motion': self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
-        }
+        # # Store event connection IDs for potential disconnection later
+        # self.event_connections = {
+        #     'click': self.canvas.mpl_connect('button_press_event', self.on_mouse_click),
+        #     'release': self.canvas.mpl_connect('button_release_event', self.on_mouse_release),
+        #     'motion': self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
+        # }
+    def setup_event_handlers(self):
+        """Set up matplotlib event handlers for the canvas."""
+        print("Setting up event handlers...")  # Debug print
+        
+        # Disconnect any existing connections first
+        self.disconnect_event_handlers()
+        
+        # Connect events to the canvas
+        self.event_connections = {}
+        
+        try:
+            self.event_connections['click'] = self.canvas.mpl_connect('button_press_event', self.on_mouse_click)
+            self.event_connections['release'] = self.canvas.mpl_connect('button_release_event', self.on_mouse_release)
+            self.event_connections['motion'] = self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
+            
+            print(f"Event handlers connected: {list(self.event_connections.keys())}")  # Debug print
+            
+        except Exception as e:
+            print(f"Error connecting event handlers: {e}")
 
 
     def on_mouse_click(self, event):
@@ -158,30 +181,32 @@ class PreprocessingPlotFrame(ttk.Frame):
         Args:
             event: matplotlib MouseEvent containing click information
         """
+        print(f"Mouse click detected! Button: {event.button}, inaxes: {event.inaxes}")  # Debug print
+        
         if event.inaxes is None:
+            print("Click was outside axes")  # Debug print
             return  # Click was outside any axes
-
-        # Check if click was on our main axes or any subplot
-        clicked_axes = event.inaxes
-
-        print(f"Clicked on axes: {clicked_axes}")
-        print(f"Click coordinates: x={event.xdata:.2f}, y={event.ydata:.2f}")
-        print(f"Mouse button: {event.button}")
-
+        
+        # Only handle left mouse button clicks
+        if event.button != 1:  # 1 = left mouse button
+            print(f"Ignoring non-left click: {event.button}")  # Debug print
+            return
+        
+        print(f"Processing click for plot type: {self.current_plot_type}")  # Debug print
+        
         # Handle different plot types
-        if self.current_plot_type == "psd":
-            self.handle_psd_click(event, clicked_axes)
-        elif self.current_plot_type == "ica_components":
-            self.handle_ica_components_click(event, clicked_axes)
+        if self.current_plot_type == "ica_components":
+            self.handle_ica_components_click(event)
+        elif self.current_plot_type == "psd":
+            self.handle_psd_click(event)
         else:
-            self.handle_generic_click(event, clicked_axes)
+            print(f"Generic click at coordinates: ({event.xdata}, {event.ydata})")
 
-
+        print(f"Mouse released at: x={event.xdata:.2f}, y={event.ydata:.2f}")
     def on_mouse_release(self, event):
         """Handle mouse release events."""
         if event.inaxes is None:
             return
-
         print(f"Mouse released at: x={event.xdata:.2f}, y={event.ydata:.2f}")
 
 
@@ -194,74 +219,66 @@ class PreprocessingPlotFrame(ttk.Frame):
         # print(f"Mouse moved to: x={event.xdata:.2f}, y={event.ydata:.2f}")
 
 
-    def handle_psd_click(self, event, axes):
+
+    def handle_psd_click(self, event):
         """
         Handle clicks on Power Spectral Density plots.
         
         Args:
             event: matplotlib MouseEvent
-            axes: The axes that was clicked
         """
+        print("Handling PSD click...")  # Debug print
+        
         try:
-            freq = event.xdata
-            power = event.ydata
-
-            print(f"PSD Click - Frequency: {freq:.2f} Hz, Power: {power:.2f}")
-
-            # Example: Show frequency information
-            messagebox.showinfo(
-                "PSD Click",
-                f"Clicked frequency: {freq:.2f} Hz\nPower: {power:.2f} dB"
-            )
-
-            # You can add more functionality here, such as:
-            # - Highlighting the clicked frequency
-            # - Filtering data around that frequency
-            # - Showing detailed analysis
-
+            if event.xdata is not None and event.ydata is not None:
+                freq = event.xdata
+                power = event.ydata
+                
+                print(f"PSD Click - Frequency: {freq:.2f} Hz, Power: {power:.2f}")
+                
+                # Show frequency information
+                messagebox.showinfo(
+                    "PSD Click", 
+                    f"Clicked frequency: {freq:.2f} Hz\nPower: {power:.2f} dB"
+                )
+        
         except Exception as e:
             print(f"Error handling PSD click: {e}")
 
 
-    def handle_ica_components_click(self, event, axes):
+    def handle_ica_components_click(self, event):
         """
-        Handle clicks on ICA component plots.
+        Handle clicks on ICA component plots and open properties popup.
         
         Args:
             event: matplotlib MouseEvent
-            axes: The axes that was clicked
         """
+        print("Handling ICA components click...")  # Debug print
+        
+        if not self.preprocessing_pipeline or not hasattr(self.preprocessing_pipeline, 'ica') or self.preprocessing_pipeline.ica is None:
+            messagebox.showwarning("Warning", "ICA has not been computed yet.")
+            return
+        
         try:
-            # For ICA components, you might want to identify which component was clicked
-            # This depends on how the ICA components are plotted
-
-            print(f"ICA Component Click - Position: x={event.xdata:.2f}, y={event.ydata:.2f}")
-
-            # Get all axes in the figure to identify which subplot was clicked
+            # Find which subplot/component was clicked
+            clicked_axes = event.inaxes
             all_axes = self.fig.get_axes()
+            
             component_index = None
-
             for i, ax in enumerate(all_axes):
-                if ax == axes:
+                if ax == clicked_axes:
                     component_index = i
                     break
-
+            
+            print(f"Found component index: {component_index}")  # Debug print
+            
             if component_index is not None:
-                print(f"Clicked on ICA component {component_index}")
-
-                # Example: Show component information
-                messagebox.showinfo(
-                    "ICA Component Click",
-                    f"Clicked on ICA Component {component_index}\n"
-                    f"Position: ({event.xdata:.2f}, {event.ydata:.2f})"
-                )
-
-                # You can add functionality here such as:
-                # - Marking component for exclusion
-                # - Showing component properties
-                # - Highlighting the component
-
+                messagebox.showinfo("ICA Click", f"Clicked on ICA component {component_index}")
+                # Show properties popup
+                self.show_ica_properties_popup(component_index)
+        
         except Exception as e:
+            messagebox.showerror("Error", f"Failed to handle ICA component click: {str(e)}")
             print(f"Error handling ICA component click: {e}")
 
 
@@ -285,12 +302,52 @@ class PreprocessingPlotFrame(ttk.Frame):
         except Exception as e:
             print(f"Error handling generic click: {e}")
 
+    def show_ica_properties_popup(self, component_index):
+        """
+        Show ICA properties in a popup window.
+        
+        Args:
+            component_index: Index of the ICA component to show properties for
+        """
+        try:
+            print(f"Opening ICA properties popup for component {component_index}")  # Debug print
+            
+            # Get ICA properties figures from preprocessing pipeline
+            properties_figures = self.preprocessing_pipeline.plot_ica_properties(component=component_index)
+            
+            if properties_figures:
+                # Find the root window
+                root_window = self.winfo_toplevel()
+                
+                # Create and show popup
+                popup = ICAPropertiesPopup(
+                    parent=root_window,
+                    figures=properties_figures,
+                    component_index=component_index
+                )
+                print(f"Opened ICA properties popup for component {component_index}")
+            else:
+                messagebox.showwarning(
+                    "Warning", 
+                    f"No properties data available for ICA component {component_index}"
+                )
+                
+        except Exception as e:
+            messagebox.showerror(
+                "Error", 
+                f"Failed to show ICA properties for component {component_index}: {str(e)}"
+            )
+            print(f"Error showing ICA properties popup: {e}")
 
     def disconnect_event_handlers(self):
         """Disconnect all event handlers (useful for cleanup)."""
         if hasattr(self, 'event_connections'):
-            for connection_id in self.event_connections.values():
-                self.canvas.mpl_disconnect(connection_id)
+            for name, connection_id in self.event_connections.items():
+                try:
+                    self.canvas.mpl_disconnect(connection_id)
+                    print(f"Disconnected {name} event handler")  # Debug print
+                except Exception as e:
+                    print(f"Error disconnecting {name} handler: {e}")
             self.event_connections.clear()
         
     def set_preprocessing_pipeline(self, pipeline):
@@ -325,12 +382,17 @@ class PreprocessingPlotFrame(ttk.Frame):
 
         self.current_plot_type = plot_type
         self.current_parameters = parameters
+        
+        print(f"Creating plot of type: {plot_type}")  # Debug print
 
         try:
             # Get figure from preprocessing pipeline (with default size)
             pipeline_fig = self._get_pipeline_figure(plot_type, parameters)
 
             if pipeline_fig is not None:
+                # Disconnect old event handlers
+                self.disconnect_event_handlers()
+                
                 # Resize the figure to match current canvas size
                 self._resize_figure_to_canvas(pipeline_fig)
 
@@ -338,6 +400,14 @@ class PreprocessingPlotFrame(ttk.Frame):
                 self.canvas.figure = pipeline_fig
                 self.fig = pipeline_fig  # Keep reference
                 self.canvas.draw()
+                
+                # Reconnect event handlers for the new figure
+                self.setup_event_handlers()
+                
+                # Ensure canvas has focus for event handling
+                self.canvas.get_tk_widget().focus_set()
+                
+                print(f"Plot created successfully, type: {plot_type}")  # Debug print
             else:
                 self._show_error_message(f'Could not generate {plot_type} plot')
 
