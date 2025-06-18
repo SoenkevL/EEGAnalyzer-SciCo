@@ -9,11 +9,12 @@ Author: Soenke van Loh
 Date: 2025-06-03
 """
 
-from .PreprocessingFunctions import *
+from eeganalyzer.preprocessing.PreprocessingFunctions import *
 import re
 from mne.preprocessing import ICA, create_ecg_epochs, create_eog_epochs
 from typing import Dict, List, Optional, Tuple, Union, Any
 import matplotlib.pyplot as plt
+from pprint import pprint
 
 
 # Configure MNE settings
@@ -324,6 +325,26 @@ class EEGPreprocessor:
             print(f"Resampled data from {original_sfreq} Hz to {sfreq} Hz")
         except Exception as e:
             print(f"Error resampling data: {str(e)}")
+
+    def mark_flat_channels(self, t_min_sec_flat=None, t_min_ratio_flat=0.5) -> List:
+        """
+        Marks channels as flat based on certain specified criteria. Flat channels are those where the
+        signal does not vary significantly over a given minimum duration or exhibits low variance.
+
+        Parameters:
+        t_min_sec_flat: float, optional
+            The minimum duration in seconds for which a channel must remain flat to be marked as such.
+            If None, the entire duration is considered.
+        t_min_ratio_flat: float, optional
+            The minimum ratio of the signal's variance to the maximum variance across all
+            channels required before marking as flat. Defaults to 0.5.
+
+        Returns:
+        List
+            A list of flat channels identified based on the criteria provided.
+        """
+
+
     
     def detect_artifacts_automatic(self, ecg_channel: Optional[str]=None,
                                    eog_channels: Optional[Union[str | list[str]]]=None) -> Dict[str, List]:
@@ -356,7 +377,7 @@ class EEGPreprocessor:
         self.preprocessing_history.append("Performed automatic artifact detection")
         return artifacts
     
-    def fit_ica(self, n_components: Optional[int] = None, picks: Optional[Union[str, List[str]]] = None,
+    def fit_ica(self, n_components: Optional[Union[int|float]] = None, picks: Optional[Union[str, List[str]]] = None,
                t_min: Optional[float] = 0, crop_duration: Optional[float] = None, filter_kwargs: Optional[Dict[str, Any]] = None,
                 plot_eeg = False, plot_block=False,
                 random_state: int = 42) -> None:
@@ -488,6 +509,29 @@ class EEGPreprocessor:
         except Exception as e:
             print(f"Error plotting ICA sources: {str(e)}")
             return None
+
+    def plot_ica_properties(self, component: Optional[int]=None) -> List[plt.figure]:
+        """
+        Plots the properties of the Independent Component Analysis (ICA) results.
+
+        This method visualizes the aspects of the ICA decomposition performed on the
+        raw data. It can include components' spectra, topographies, and more, providing
+        insights into the results of the ICA analysis.
+
+        Args:
+            self: Object instance context where the `ica` attribute refers to an
+                  ICA object and the `raw` attribute refers to raw data involved
+                  in ICA decomposition.
+            component: Optional, int
+                which component should be displayed, by default when left as None the first 5 will be returned
+
+        Returns:
+            None
+        """
+        return self.ica.plot_properties(self.raw, picks=component)
+
+    def print_ica_variance(self):
+        pprint(self.ica.get_explained_variance_ratio(self.raw))
     
     def exclude_ica_components(self, components: List[int]) -> None:
         """
@@ -542,6 +586,7 @@ class EEGPreprocessor:
                          'h_freq': 40,
                         }
                      )
+
     def run_ica_selection(self, apply=True):
         # Plot ICA components with multiprocessing
         if self.ica is not None:
@@ -712,16 +757,16 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     preprocessor.print_channel_info()
     print(preprocessor.channel_categories.get('EEG'))
     
-    # Inspect raw data
-    print("\n0. Inspecting raw data...")
-    print('Here we plot the eeg for the first time, allowing us to mark obvious bad channels')
-    preprocessor.raw.plot(
-        duration=20,
-        block=True,
-        title='unprocessed raw eeg',
-        remove_dc=True,
-        theme='light'
-    )
+    # # Inspect raw data
+    # print("\n0. Inspecting raw data...")
+    # print('Here we plot the eeg for the first time, allowing us to mark obvious bad channels')
+    # preprocessor.raw.plot(
+    #     duration=20,
+    #     block=True,
+    #     title='unprocessed raw eeg',
+    #     remove_dc=True,
+    #     theme='light'
+    # )
 
     # Montage
     print('\n Setting up montage for the eeg, using a standard montage from mne')
@@ -744,15 +789,15 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
 
     # Show filtered data
     print("\n1. Initial data inspection filtered within neurologically relevant sections for scalp eeg")
-    preprocessor.plot_eeg_data(
-        duration=20,
-        block=True,
-        title='Initial eeg inspection',
-        plot_kwargs={
-            'highpass': 0.5,
-            'lowpass': 70,
-        }
-    )
+    # preprocessor.plot_eeg_data(
+    #     duration=20,
+    #     block=False,
+    #     title='Initial eeg inspection',
+    #     plot_kwargs={
+    #         'highpass': 0.5,
+    #         'lowpass': 70,
+    #     }
+    # )
 
     # Plot power spectral density
     print("\n2. Plotting power spectral density prior preprocessing...")
@@ -768,22 +813,23 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     preprocessor.apply_filter(l_freq=1, h_freq=40)
 
     #Resample data
-    print("\n4. Resampling data to match the sampling frequency of the target analysis and unify sampling frequencies across eegs")
-    preprocessor.resample_data(sfreq=1024)
+    # print("\n4. Resampling data to match the sampling frequency of the target analysis and unify sampling frequencies across eegs")
+    # preprocessor.resample_data(sfreq=1024)
 
     #Plot power spectral density with multiprocessing
     print("\n5. Plotting power spectral density after processing...")
     preprocessor.plot_power_spectral_density(
         fmin=0.5,
         fmax=50,
-        title='PSD of filtered and resampled EEG'
+        title='PSD of filtered and resampled EEG',
+        show=True
     )
 
     # Detect artifacts automatically
     #TODO: something seems wrong with the artifact detection, as EKG channel is in list but not detected
-    print("\n7. Detecting artifacts...")
-    artifacts = preprocessor.detect_artifacts_automatic(ecg_channel=preprocessor.channel_categories.get('ECG', None),
-                                                        eog_channels=preprocessor.channel_categories.get('EOG', None))
+    # print("\n7. Detecting artifacts...")
+    # artifacts = preprocessor.detect_artifacts_automatic(ecg_channel=preprocessor.channel_categories.get('ECG', None),
+    #                                                     eog_channels=preprocessor.channel_categories.get('EOG', None))
     
     #TODO: Implement dead channel detection
 
@@ -791,7 +837,8 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     print("\n9. Fitting ICA...")
     ica_channels = [preprocessor.channel_categories.get(category, []) for category in ['EEG', 'EMG', 'ECG', 'EOG']]
     ica_channels = [channel for sublist in ica_channels for channel in sublist]
-    preprocessor.fit_ica(n_components=15, crop_duration=60,
+    preprocessor.fit_ica(n_components=0.99, crop_duration=360,
+                         t_min=10,
                          picks=ica_channels
                          )
 
@@ -799,6 +846,9 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     if preprocessor.ica is not None:
         print("\n10. Plotting ICA components...")
         preprocessor.plot_ica_components()
+        # preprocessor.plot_ica_sources_psd()
+        preprocessor.print_ica_variance()
+        preprocessor.plot_ica_properties(component=0)
 
         preprocessor.plot_ica_sources(duration=60)
 
