@@ -262,7 +262,7 @@ class PreprocessingFrame(ttk.Frame):
         
         # Enable all buttons
         buttons = [
-            self.hp_button, self.lp_button, self.notch_button,
+            self.hp_button, self.lp_button,
             self.resample_button, self.bad_ch_button, self.fit_ica_button,
             self.apply_ica_button, self.montage_button
         ]
@@ -302,10 +302,10 @@ class PreprocessingFrame(ttk.Frame):
         freq = self.lp_var.get()
         self.step_callback("lowpass", {"freq": freq})
         
-    def apply_notch_filter(self):
-        """Apply notch filter."""
-        freq = self.notch_var.get()
-        self.step_callback("notch", {"freq": freq})
+    # def apply_notch_filter(self):
+    #     """Apply notch filter."""
+    #     freq = self.notch_var.get()
+    #     self.step_callback("notch", {"freq": freq})
         
     def apply_resampling(self):
         """Apply resampling."""
