@@ -215,8 +215,8 @@ class PreprocessingViewerApp:
                 self.preprocessing_pipeline.apply_filter(l_freq=parameters["freq"], h_freq=None)
             elif step_name == "lowpass":
                 self.preprocessing_pipeline.apply_filter(l_freq=None, h_freq=parameters["freq"])
-            # elif step_name == "notch":
-            #     self.preprocessing_pipeline.apply_notch_filter(freqs=parameters["freq"])
+            elif step_name == "notch":
+                self.preprocessing_pipeline.apply_notch_filter(freqs=parameters["freq"])
             elif step_name == "resample":
                 self.preprocessing_pipeline.resample_data(sfreq=parameters["sfreq"])
             elif step_name == "fit_montage":

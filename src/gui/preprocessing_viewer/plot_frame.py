@@ -104,194 +104,33 @@ class PreprocessingPlotFrame(ttk.Frame):
         
         # Create matplotlib frame
         self.create_matplotlib_frame()
-    # Create matplotlibframe    
+        
     def create_matplotlib_frame(self):
         """Create the matplotlib plotting frame."""
         # Create matplotlib figure
         self.fig = plt.Figure(figsize=(10, 6), dpi=100)
         self.ax = self.fig.add_subplot(111)
-
+        
         # Create canvas
         self.canvas = FigureCanvasTkAgg(self.fig, self)
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
-
-        # Connect event handlers
-        self.setup_event_handlers()
-
+        
         # Create a separate frame for the toolbar to avoid geometry manager conflicts
         toolbar_frame = ttk.Frame(self)
         toolbar_frame.grid(row=2, column=0, sticky="ew", padx=5)
-
+        
         # Create toolbar in the separate frame
         toolbar = NavigationToolbar2Tk(self.canvas, toolbar_frame)
         toolbar.update()
         # The toolbar will automatically pack itself within toolbar_frame
-
+        
         # Initial empty plot
-        self.ax.text(0.5, 0.5, 'Load EEG data to view analysis plots\n\nUse direct view buttons for raw data and ICA plots',
-                     horizontalalignment='center', verticalalignment='center',
-                     transform=self.ax.transAxes, fontsize=12, alpha=0.7)
+        self.ax.text(0.5, 0.5, 'Load EEG data to view analysis plots\n\nUse direct view buttons for raw data and ICA plots', 
+                    horizontalalignment='center', verticalalignment='center',
+                    transform=self.ax.transAxes, fontsize=12, alpha=0.7)
         self.ax.set_xticks([])
         self.ax.set_yticks([])
-
-
-    def setup_event_handlers(self):
-        """Set up matplotlib event handlers for the canvas."""
-        # Connect mouse click events
-        self.canvas.mpl_connect('button_press_event', self.on_mouse_click)
-        self.canvas.mpl_connect('button_release_event', self.on_mouse_release)
-        self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
-
-        # Store event connection IDs for potential disconnection later
-        self.event_connections = {
-            'click': self.canvas.mpl_connect('button_press_event', self.on_mouse_click),
-            'release': self.canvas.mpl_connect('button_release_event', self.on_mouse_release),
-            'motion': self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
-        }
-
-
-    def on_mouse_click(self, event):
-        """
-        Handle mouse click events on the plot.
-        
-        Args:
-            event: matplotlib MouseEvent containing click information
-        """
-        if event.inaxes is None:
-            return  # Click was outside any axes
-
-        # Check if click was on our main axes or any subplot
-        clicked_axes = event.inaxes
-
-        print(f"Clicked on axes: {clicked_axes}")
-        print(f"Click coordinates: x={event.xdata:.2f}, y={event.ydata:.2f}")
-        print(f"Mouse button: {event.button}")
-
-        # Handle different plot types
-        if self.current_plot_type == "psd":
-            self.handle_psd_click(event, clicked_axes)
-        elif self.current_plot_type == "ica_components":
-            self.handle_ica_components_click(event, clicked_axes)
-        else:
-            self.handle_generic_click(event, clicked_axes)
-
-
-    def on_mouse_release(self, event):
-        """Handle mouse release events."""
-        if event.inaxes is None:
-            return
-
-        print(f"Mouse released at: x={event.xdata:.2f}, y={event.ydata:.2f}")
-
-
-    def on_mouse_move(self, event):
-        """Handle mouse move events (optional - can be used for hover effects)."""
-        if event.inaxes is None:
-            return
-
-        # Uncomment the line below if you want to track mouse movement
-        # print(f"Mouse moved to: x={event.xdata:.2f}, y={event.ydata:.2f}")
-
-
-    def handle_psd_click(self, event, axes):
-        """
-        Handle clicks on Power Spectral Density plots.
-        
-        Args:
-            event: matplotlib MouseEvent
-            axes: The axes that was clicked
-        """
-        try:
-            freq = event.xdata
-            power = event.ydata
-
-            print(f"PSD Click - Frequency: {freq:.2f} Hz, Power: {power:.2f}")
-
-            # Example: Show frequency information
-            messagebox.showinfo(
-                "PSD Click",
-                f"Clicked frequency: {freq:.2f} Hz\nPower: {power:.2f} dB"
-            )
-
-            # You can add more functionality here, such as:
-            # - Highlighting the clicked frequency
-            # - Filtering data around that frequency
-            # - Showing detailed analysis
-
-        except Exception as e:
-            print(f"Error handling PSD click: {e}")
-
-
-    def handle_ica_components_click(self, event, axes):
-        """
-        Handle clicks on ICA component plots.
-        
-        Args:
-            event: matplotlib MouseEvent
-            axes: The axes that was clicked
-        """
-        try:
-            # For ICA components, you might want to identify which component was clicked
-            # This depends on how the ICA components are plotted
-
-            print(f"ICA Component Click - Position: x={event.xdata:.2f}, y={event.ydata:.2f}")
-
-            # Get all axes in the figure to identify which subplot was clicked
-            all_axes = self.fig.get_axes()
-            component_index = None
-
-            for i, ax in enumerate(all_axes):
-                if ax == axes:
-                    component_index = i
-                    break
-
-            if component_index is not None:
-                print(f"Clicked on ICA component {component_index}")
-
-                # Example: Show component information
-                messagebox.showinfo(
-                    "ICA Component Click",
-                    f"Clicked on ICA Component {component_index}\n"
-                    f"Position: ({event.xdata:.2f}, {event.ydata:.2f})"
-                )
-
-                # You can add functionality here such as:
-                # - Marking component for exclusion
-                # - Showing component properties
-                # - Highlighting the component
-
-        except Exception as e:
-            print(f"Error handling ICA component click: {e}")
-
-
-    def handle_generic_click(self, event, axes):
-        """
-        Handle clicks on generic plots.
-        
-        Args:
-            event: matplotlib MouseEvent
-            axes: The axes that was clicked
-        """
-        try:
-            print(f"Generic Click - Position: x={event.xdata:.2f}, y={event.ydata:.2f}")
-
-            # Add your custom logic here
-            # For example, you could:
-            # - Show data point information
-            # - Add annotations
-            # - Trigger other GUI actions
-
-        except Exception as e:
-            print(f"Error handling generic click: {e}")
-
-
-    def disconnect_event_handlers(self):
-        """Disconnect all event handlers (useful for cleanup)."""
-        if hasattr(self, 'event_connections'):
-            for connection_id in self.event_connections.values():
-                self.canvas.mpl_disconnect(connection_id)
-            self.event_connections.clear()
         
     def set_preprocessing_pipeline(self, pipeline):
         """
@@ -459,67 +298,3 @@ class PreprocessingPlotFrame(ttk.Frame):
             self.preprocessing_pipeline.plot_ica_sources()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to plot ICA sources: {str(e)}")
-
-    def identify_clicked_subplot(self, event):
-        """
-        Identify which subplot was clicked in multi-subplot figures.
-        
-        Args:
-            event: matplotlib MouseEvent
-            
-        Returns:
-            tuple: (subplot_index, subplot_axes) or (None, None) if not found
-        """
-        if event.inaxes is None:
-            return None, None
-
-        all_axes = self.fig.get_axes()
-
-        for i, ax in enumerate(all_axes):
-            if ax == event.inaxes:
-                return i, ax
-
-        return None, None
-
-
-    def add_subplot_click_highlight(self, axes, color='red', alpha=0.3):
-        """
-        Add a highlight overlay to a clicked subplot.
-        
-        Args:
-            axes: The matplotlib axes to highlight
-            color: Color of the highlight
-            alpha: Transparency of the highlight
-        """
-        try:
-            # Remove existing highlights
-            self.remove_subplot_highlights()
-
-            # Add new highlight
-            xlim = axes.get_xlim()
-            ylim = axes.get_ylim()
-
-            highlight = axes.axvspan(xlim[0], xlim[1], alpha=alpha, color=color, zorder=1000)
-
-            # Store reference to remove later
-            if not hasattr(self, 'subplot_highlights'):
-                self.subplot_highlights = []
-            self.subplot_highlights.append(highlight)
-
-            # Redraw canvas
-            self.canvas.draw()
-
-        except Exception as e:
-            print(f"Error adding subplot highlight: {e}")
-
-
-    def remove_subplot_highlights(self):
-        """Remove all subplot highlights."""
-        if hasattr(self, 'subplot_highlights'):
-            for highlight in self.subplot_highlights:
-                try:
-                    highlight.remove()
-                except:
-                    pass
-            self.subplot_highlights.clear()
-            self.canvas.draw()
