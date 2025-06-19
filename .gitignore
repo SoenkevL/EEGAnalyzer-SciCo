@@ -4,6 +4,7 @@
 *.fif
 *.log
 *.sqlite
+*.mat
 Artificial_signal_tests/csv
 
 # Byte-compiled / optimized / DLL files
