@@ -46,6 +46,13 @@ def find_best_match(raw_name, montage_list, similarity_threshold):
         if normalized_raw.lower() == electrode.lower():
             return electrode
 
+    # Then check if the name of the electrode is in the name of the raw channel,
+    # montage list needs to be sorted by length of string first to ensure the result to be as specific as possible
+    sorted_montage_list = sorted(montage_list, key=len, reverse=True)
+    for electrode in sorted_montage_list:
+        if electrode.lower() in normalized_raw.lower():
+            return electrode
+
     # Then try fuzzy matching
     best_match = None
     best_score = 0

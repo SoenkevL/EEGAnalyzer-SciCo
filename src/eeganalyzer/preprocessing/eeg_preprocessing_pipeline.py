@@ -15,6 +15,7 @@ from mne.preprocessing import ICA, create_ecg_epochs, create_eog_epochs
 from typing import Dict, List, Optional, Tuple, Union, Any
 import matplotlib.pyplot as plt
 from pprint import pprint
+from channel_regex_patterns import get_default_patterns, merge_patterns, get_mne_channel_types
 
 
 # Configure MNE settings
@@ -49,10 +50,7 @@ class EEGPreprocessor:
 
         # Load the raw data
         self.load_data(preload=preload)
-        
-        # Categorize channels automatically
-        self.categorize_channels()
-    
+
     def load_data(self, preload: bool = True) -> None:
         """
         Load EEG data from file.
@@ -81,7 +79,9 @@ class EEGPreprocessor:
         except Exception as e:
             raise ValueError(f"Failed to load data from {self.filepath}: {str(e)}")
     
-    def categorize_channels(self, mark_unclassified_as_bad = False) -> Dict[str, List[str]]:
+    def categorize_channels(self, mark_unclassified_as_bad = False,
+                            patterns=None, merge_with_default=True,
+                            save_types_in_info=True) -> Dict[str, List[str]]:
         """
         Automatically categorize channels using regex patterns.
         
@@ -91,41 +91,13 @@ class EEGPreprocessor:
             Dictionary with channel categories as keys and channel lists as values
         """
         # Define regex patterns for different channel types
-        patterns = {
-            'EOG': [
-                r'(?!.*EEG)(EOG|EYE)',  # Eye movement channels (exclude if contains EEG)
-                r'(?!.*EEG)[VH]EOG',  # Vertical/Horizontal EOG (exclude if contains EEG)
-                r'(?!.*EEG)Eye',  # Any eye-related channel (exclude if contains EEG)
-            ],
-            'ECG': [
-                r'(?!.*EEG)(ECG|EKG|CARDIAC|HEART)',  # Heart channels (exclude if contains EEG)
-            ],
-            'EMG': [
-                r'(?!.*EEG)(EMG|MUSCLE)',  # Muscle activity (exclude if contains EEG)
-            ],
-            'SPO2': [
-                r'(?!.*EEG)(SPO2|SAT|PULSE)',  # Oxygen saturation (exclude if contains EEG)
-            ],
-            'RESP': [
-                r'(?!.*EEG)(RESP|BREATH|THORAX|CHEST)',  # Respiration (exclude if contains EEG)
-            ],
-            'TRIGGER': [
-                r'(?!.*EEG)(TRIG|STI|EVENT|MARKER|Status)',  # Trigger channels (exclude if contains EEG)
-            ],
-            'MEG': [
-                r'(?!.*EEG)MEG\d+',  # MEG channels (exclude if contains EEG)
-                r'(?!.*EEG)MAG\d+',  # Magnetometers (exclude if contains EEG)
-                r'(?!.*EEG)GRAD\d+',  # Gradiometers (exclude if contains EEG)
-            ],
-            'MISC': [
-                r'(?!.*EEG)(MISC|OTHER|AUX)',  # Miscellaneous (exclude if contains EEG)
-            ],
-            'EEG': [
-                r'(EEG|E)\d+',  # EEG channels with numbers
-                r'[A-Za-z]+\d+',  # Any letters followed by numbers (covers most electrode names)
-                r'[A-Za-z]*z\d*',  # Midline electrodes ending in 'z' (with optional numbers)
-            ],
-        }
+        default_patterns = get_default_patterns()
+        if not patterns:
+            patterns = default_patterns
+        elif merge_with_default:
+            patterns = merge_patterns(patterns)
+        else:
+            patterns = patterns
 
         self.channel_categories = {category: [] for category in patterns.keys()}
         unclassified = []
@@ -148,6 +120,16 @@ class EEGPreprocessor:
             self.channel_categories['UNCLASSIFIED'] = unclassified
         
         self.preprocessing_history.append("Categorized channels")
+
+        if save_types_in_info:
+            valid_channel_types=get_mne_channel_types()
+            ch_types = {}
+            for category, channels in self.channel_categories.items():
+                if category.lower() in valid_channel_types:
+                    for channel in channels:
+                        ch_types[channel] = category.lower()
+            if ch_types:
+                self.raw.set_channel_types(ch_types)
         if mark_unclassified_as_bad:
             self.mark_bad_channels(unclassified)
             self.preprocessing_history.append("Marked unclassified channels as bad")
@@ -775,18 +757,27 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     preprocessor = EEGPreprocessor(filepath)
     # Print channel information
     preprocessor.print_channel_info()
+    CUSTOM_PATTERNS = {
+        'EOG': [
+            r'.*Ref-?1.*',  # Matches anything containing 'Ref-0' or 'Ref0'
+        ],
+        'ECG': [
+            r'.*[Ii][Nn].*',  # Matches anything containing 'In' or 'ln' (case insensitive)
+        ]
+    }
+    preprocessor.categorize_channels(patterns=CUSTOM_PATTERNS, merge_with_default=True)
     print(preprocessor.channel_categories.get('EEG'))
     
-    # # Inspect raw data
-    # print("\n0. Inspecting raw data...")
-    # print('Here we plot the eeg for the first time, allowing us to mark obvious bad channels')
-    # preprocessor.raw.plot(
-    #     duration=20,
-    #     block=True,
-    #     title='unprocessed raw eeg',
-    #     remove_dc=True,
-    #     theme='light'
-    # )
+    # Inspect raw data
+    print("\n0. Inspecting raw data...")
+    print('Here we plot the eeg for the first time, allowing us to mark obvious bad channels')
+    preprocessor.raw.plot(
+        duration=20,
+        block=True,
+        title='unprocessed raw eeg',
+        remove_dc=True,
+        theme='light'
+    )
 
 
     # Montage
@@ -795,7 +786,7 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     ## Show montage and get object
     montage = show_example_montage(montage_name)
     ## Create electrode mapping
-    raw_orig_ch_names = preprocessor.raw.ch_names
+    raw_orig_ch_names = preprocessor.channel_categories.get('EEG', [])
     montage_ch_names = montage.ch_names
     mapping_dict, unmatched = create_electrode_mapping(montage_ch_names, raw_orig_ch_names)
     ## Rename channel names
@@ -803,7 +794,7 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     ## Apply electrode
     preprocessor.set_montage(montage_name)
     ## Recategorize the channels
-    preprocessor.categorize_channels()
+    preprocessor.categorize_channels(patterns=CUSTOM_PATTERNS, merge_with_default=True)
 
     # Mark unclassified channels as bad
     preprocessor.mark_bad_channels(preprocessor.channel_categories.get('UNCLASSIFIED', []))
@@ -897,7 +888,7 @@ def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = N
     if output_path:
         print(f"\n11. Saving preprocessed data to {output_path}...")
         preprocessor.save_preprocessed(output_path, overwrite=True)
-    
+
     # Print summary
     print(preprocessor.get_preprocessing_summary())
     return preprocessor
@@ -910,8 +901,8 @@ def choose_montage():
 
 if __name__ == "__main__":
     # Example usage demonstrating multiprocessing capabilities
-    sample_file = "../../../example/eeg/PN001-original.edf"
-    output_file = "../../../example/eeg/PN001-preprocessed.fif"
+    sample_file = "../../../example/eeg/sub-001_task-AWAKE_original.edf"
+    output_file = "../../../example/eeg/sub-001_task-AWAKE_preprocessed-raw.fif"
 
     if os.path.exists(sample_file):
         preprocessor = example_preprocessing_pipeline(sample_file, output_file)
