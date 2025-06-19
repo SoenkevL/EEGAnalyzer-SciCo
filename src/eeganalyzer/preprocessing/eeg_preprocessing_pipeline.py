@@ -15,7 +15,7 @@ from mne.preprocessing import ICA, create_ecg_epochs, create_eog_epochs
 from typing import Dict, List, Optional, Tuple, Union, Any
 import matplotlib.pyplot as plt
 from pprint import pprint
-from channel_regex_patterns import get_default_patterns, merge_patterns, get_mne_channel_types
+from eeganalyzer.preprocessing.channel_regex_patterns import get_default_patterns, merge_patterns, get_mne_channel_types
 
 
 # Configure MNE settings
