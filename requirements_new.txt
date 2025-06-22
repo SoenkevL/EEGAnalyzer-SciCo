@@ -9,7 +9,6 @@ darkdetect==0.8.0
 decorator==5.2.1
 dill==0.4.0
 edgeofpy==0.0.1
--e git+ssh://git@github.com/SoenkevL/EEGAnalyzer-SciCo.git@5ccd38fa7301a0c460dae1e286414b9834fc2d36#egg=eeganalyzer_scico
 engineering-notation==0.10.0
 executing==2.2.0
 fonttools==4.58.4
