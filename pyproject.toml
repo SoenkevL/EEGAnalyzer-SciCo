@@ -44,4 +44,5 @@ dependencies = [
 
 [project.scripts]
 eeganalyzer = "eeganalyzer.cli.cli:main"
-eegviewer = "gui.run_metrics_viewer:main"
+metricviewer = "gui.run_metrics_viewer:main"
+preprocessor = "gui.run_preprocessing_viewer:main"
