@@ -16,7 +16,8 @@ from typing import Dict, List, Optional, Tuple, Union, Any
 import matplotlib.pyplot as plt
 from pprint import pprint
 from eeganalyzer.preprocessing.channel_regex_patterns import get_default_patterns, merge_patterns, get_mne_channel_types
-
+import argparse
+import os
 
 # Configure MNE settings
 mne.set_config('MNE_BROWSER_BACKEND', 'qt')
@@ -898,14 +899,23 @@ def choose_montage():
     montage = show_example_montage('standard_1020')
     print(montage.ch_names)
 
+    if __name__ == "__main__":
 
-if __name__ == "__main__":
-    # Example usage demonstrating multiprocessing capabilities
-    sample_file = "../../../example/eeg/sub-001_task-AWAKE_original.edf"
-    output_file = "../../../example/eeg/sub-001_task-AWAKE_preprocessed-raw.fif"
+        parser = argparse.ArgumentParser(description='EEG Preprocessing Pipeline')
+        parser.add_argument('input_file', help='Path to input EEG file')
+        parser.add_argument('-o', '--output', help='Path to output file (optional)')
+        args = parser.parse_args()
 
-    if os.path.exists(sample_file):
-        preprocessor = example_preprocessing_pipeline(sample_file, output_file)
-    else:
-        print(f"Sample file not found: {sample_file}")
-        print("Please update the filepath or provide your own EEG file.")
+        input_file = args.input_file
+        if args.output:
+            output_file = args.output
+        else:
+            # Generate output filename by replacing the extension with preprocessed-raw.fif
+            base_path = os.path.splitext(input_file)[0]
+            output_file = f"{base_path}_preprocessed-raw.fif"
+
+        if os.path.exists(input_file):
+            preprocessor = example_preprocessing_pipeline(input_file, output_file)
+        else:
+            print(f"Input file not found: {input_file}")
+            print("Please provide a valid input file path.")
