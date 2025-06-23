@@ -38,7 +38,7 @@ class PreprocessingPlotFrame(ttk.Frame):
             **kwargs: Additional arguments for the Frame constructor
         """
         super().__init__(parent, **kwargs)
-        
+
         self.preprocessing_pipeline = None
         self.current_plot_type = None
         self.current_parameters = {}
@@ -94,7 +94,7 @@ class PreprocessingPlotFrame(ttk.Frame):
             state=tk.DISABLED
         )
         self.plot_raw_button.pack(side=tk.LEFT, padx=2)
-        
+
         self.plot_ica_sources_button = ttk.Button(
             control_frame,
             text="ICA Sources",
@@ -140,19 +140,7 @@ class PreprocessingPlotFrame(ttk.Frame):
         # Set up event handlers AFTER canvas is created and configured
         self.setup_event_handlers()
 
-    def setup_event_handlers(self):
-        """Set up matplotlib event handlers for the canvas."""
-        # Connect mouse click events
-        # self.canvas.mpl_connect('button_press_event', self.on_mouse_click)
-        # self.canvas.mpl_connect('button_release_event', self.on_mouse_release)
-        # self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
-
-        # # Store event connection IDs for potential disconnection later
-        # self.event_connections = {
-        #     'click': self.canvas.mpl_connect('button_press_event', self.on_mouse_click),
-        #     'release': self.canvas.mpl_connect('button_release_event', self.on_mouse_release),
-        #     'motion': self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
-        # }
+    # Event handlers
     def setup_event_handlers(self):
         """Set up matplotlib event handlers for the canvas."""
         print("Setting up event handlers...")  # Debug print
@@ -172,7 +160,6 @@ class PreprocessingPlotFrame(ttk.Frame):
             
         except Exception as e:
             print(f"Error connecting event handlers: {e}")
-
 
     def on_mouse_click(self, event):
         """
@@ -203,12 +190,12 @@ class PreprocessingPlotFrame(ttk.Frame):
             print(f"Generic click at coordinates: ({event.xdata}, {event.ydata})")
 
         print(f"Mouse released at: x={event.xdata:.2f}, y={event.ydata:.2f}")
+
     def on_mouse_release(self, event):
         """Handle mouse release events."""
         if event.inaxes is None:
             return
         print(f"Mouse released at: x={event.xdata:.2f}, y={event.ydata:.2f}")
-
 
     def on_mouse_move(self, event):
         """Handle mouse move events (optional - can be used for hover effects)."""
@@ -217,8 +204,6 @@ class PreprocessingPlotFrame(ttk.Frame):
 
         # Uncomment the line below if you want to track mouse movement
         # print(f"Mouse moved to: x={event.xdata:.2f}, y={event.ydata:.2f}")
-
-
 
     def handle_psd_click(self, event):
         """
@@ -244,7 +229,6 @@ class PreprocessingPlotFrame(ttk.Frame):
         
         except Exception as e:
             print(f"Error handling PSD click: {e}")
-
 
     def handle_ica_components_click(self, event):
         """
@@ -280,7 +264,6 @@ class PreprocessingPlotFrame(ttk.Frame):
         except Exception as e:
             messagebox.showerror("Error", f"Failed to handle ICA component click: {str(e)}")
             print(f"Error handling ICA component click: {e}")
-
 
     def handle_generic_click(self, event, axes):
         """
@@ -349,7 +332,51 @@ class PreprocessingPlotFrame(ttk.Frame):
                 except Exception as e:
                     print(f"Error disconnecting {name} handler: {e}")
             self.event_connections.clear()
-        
+
+    # Highlighting for selected subplots (not functional)
+    # TODO: look into why this isnt working yet
+    def add_subplot_click_highlight(self, axes, color='red', alpha=0.3):
+        """
+        Add a highlight overlay to a clicked subplot.
+
+        Args:
+            axes: The matplotlib axes to highlight
+            color: Color of the highlight
+            alpha: Transparency of the highlight
+        """
+        try:
+            # Remove existing highlights
+            self.remove_subplot_highlights()
+
+            # Add new highlight
+            xlim = axes.get_xlim()
+            ylim = axes.get_ylim()
+
+            highlight = axes.axvspan(xlim[0], xlim[1], alpha=alpha, color=color, zorder=1000)
+
+            # Store reference to remove later
+            if not hasattr(self, 'subplot_highlights'):
+                self.subplot_highlights = []
+            self.subplot_highlights.append(highlight)
+
+            # Redraw canvas
+            self.canvas.draw()
+
+        except Exception as e:
+            print(f"Error adding subplot highlight: {e}")
+
+    def remove_subplot_highlights(self):
+        """Remove all subplot highlights."""
+        if hasattr(self, 'subplot_highlights'):
+            for highlight in self.subplot_highlights:
+                try:
+                    highlight.remove()
+                except:
+                    pass
+            self.subplot_highlights.clear()
+            self.canvas.draw()
+
+    # Initialize the preprocessing pipeline
     def set_preprocessing_pipeline(self, pipeline):
         """
         Set the preprocessing pipeline.
@@ -362,7 +389,8 @@ class PreprocessingPlotFrame(ttk.Frame):
         self.plot_raw_button.config(state=tk.NORMAL)
         self.plot_ica_sources_button.config(state=tk.NORMAL)
         self.refresh_initial_plot()
-        
+
+    # Plotting
     def refresh_initial_plot(self):
         """Refresh the plot with current data."""
         if self.preprocessing_pipeline and self.preprocessing_pipeline.raw:
@@ -441,7 +469,6 @@ class PreprocessingPlotFrame(ttk.Frame):
         except Exception as e:
             print(f"Warning: Could not resize figure: {str(e)}")
 
-
     def _get_pipeline_figure(self, plot_type: str, parameters: dict):
         """
         Get figure from preprocessing pipeline based on plot type.
@@ -498,7 +525,7 @@ class PreprocessingPlotFrame(ttk.Frame):
         self.refresh_plot()
         
     # Direct plotting methods (moved from app.py)
-    def plot_raw_data_direct(self):
+    def plot_raw_data_direct(self, remove_dc=False):
         """Plot raw data directly through pipeline."""
         if not self.preprocessing_pipeline:
             messagebox.showwarning("Warning", "No data loaded")
@@ -510,6 +537,7 @@ class PreprocessingPlotFrame(ttk.Frame):
                 n_channels=20,
                 start=0.0,
                 block=True,
+                remove_dc=remove_dc,
                 title="Raw EEG Data"
             )
         except Exception as e:
@@ -550,46 +578,3 @@ class PreprocessingPlotFrame(ttk.Frame):
                 return i, ax
 
         return None, None
-
-
-    def add_subplot_click_highlight(self, axes, color='red', alpha=0.3):
-        """
-        Add a highlight overlay to a clicked subplot.
-        
-        Args:
-            axes: The matplotlib axes to highlight
-            color: Color of the highlight
-            alpha: Transparency of the highlight
-        """
-        try:
-            # Remove existing highlights
-            self.remove_subplot_highlights()
-
-            # Add new highlight
-            xlim = axes.get_xlim()
-            ylim = axes.get_ylim()
-
-            highlight = axes.axvspan(xlim[0], xlim[1], alpha=alpha, color=color, zorder=1000)
-
-            # Store reference to remove later
-            if not hasattr(self, 'subplot_highlights'):
-                self.subplot_highlights = []
-            self.subplot_highlights.append(highlight)
-
-            # Redraw canvas
-            self.canvas.draw()
-
-        except Exception as e:
-            print(f"Error adding subplot highlight: {e}")
-
-
-    def remove_subplot_highlights(self):
-        """Remove all subplot highlights."""
-        if hasattr(self, 'subplot_highlights'):
-            for highlight in self.subplot_highlights:
-                try:
-                    highlight.remove()
-                except:
-                    pass
-            self.subplot_highlights.clear()
-            self.canvas.draw()

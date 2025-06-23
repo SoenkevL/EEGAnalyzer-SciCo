@@ -159,7 +159,7 @@ class EEGPreprocessor:
         print(f"\nBad channels: {self.raw.info['bads']}")
 
     def plot_eeg_data(self, duration: float = 20.0, n_channels: int = 20,
-                        start: float = 0.0, block: bool = True,
+                        start: float = 0.0, block: bool = True, remove_dc = False,
                         title: Optional[str] = None,
                         plot_kwargs: Optional[Dict[str, Any]] = None) -> None:
         """
@@ -175,6 +175,8 @@ class EEGPreprocessor:
             Start time for display
         block : bool, default=False
             Whether to block execution until plot is closed
+        remove_dc: bool, default=False
+            Whether to remove the dc from the channels
         title: str, optional, default=None
             The title of the plot
         plot_kwargs: dict, optional
@@ -192,7 +194,7 @@ class EEGPreprocessor:
                     duration=duration,
                     n_channels=n_channels,
                     start=start,
-                    remove_dc=False,
+                    remove_dc=remove_dc,
                     block=block,
                     show_options=True,
                     title=title,
@@ -204,7 +206,7 @@ class EEGPreprocessor:
                     duration=duration,
                     n_channels=n_channels,
                     start=start,
-                    remove_dc=False,
+                    remove_dc=remove_dc,
                     block=block,
                     show_options=True,
                     title=title,
