@@ -281,7 +281,7 @@ class EEGPreprocessor:
             self.raw.filter(
                 l_freq=l_freq,
                 h_freq=h_freq,
-                picks=picks,
+                picks=picks if picks else 'all',
                 filter_length='auto',
                 l_trans_bandwidth='auto',
                 h_trans_bandwidth='auto',
@@ -503,6 +503,7 @@ class EEGPreprocessor:
         -------
         None
         """
+        #TODO: removing the EEG in this plot crashed the programm, investigate why and if that is intended behaviour
         if self.ica is None:
             print("ICA has not been fitted yet. Run fit_ica() first.")
             return None

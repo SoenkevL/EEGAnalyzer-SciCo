@@ -94,7 +94,17 @@ class PreprocessingPlotFrame(ttk.Frame):
             state=tk.DISABLED
         )
         self.plot_raw_button.pack(side=tk.LEFT, padx=2)
-
+        
+        # Add checkbox for DC removal
+        self.remove_dc_var = tk.BooleanVar(value=False)
+        self.remove_dc_checkbox = ttk.Checkbutton(
+            control_frame,
+            text="Remove DC",
+            variable=self.remove_dc_var,
+            command=self.on_remove_dc_changed
+        )
+        self.remove_dc_checkbox.pack(side=tk.LEFT, padx=(2, 8))
+        
         self.plot_ica_sources_button = ttk.Button(
             control_frame,
             text="ICA Sources",
@@ -525,11 +535,14 @@ class PreprocessingPlotFrame(ttk.Frame):
         self.refresh_plot()
         
     # Direct plotting methods (moved from app.py)
-    def plot_raw_data_direct(self, remove_dc=False):
+    def plot_raw_data_direct(self):
         """Plot raw data directly through pipeline."""
         if not self.preprocessing_pipeline:
             messagebox.showwarning("Warning", "No data loaded")
             return
+        
+        # Use checkbox value if remove_dc parameter is not explicitly provided
+        remove_dc = self.remove_dc_var.get()
             
         try:
             self.preprocessing_pipeline.plot_eeg_data(
@@ -543,6 +556,12 @@ class PreprocessingPlotFrame(ttk.Frame):
         except Exception as e:
             messagebox.showerror("Error", f"Failed to plot raw data: {str(e)}")
             
+    def on_remove_dc_changed(self):
+        """Handle changes to the Remove DC checkbox."""
+        # This method will be called whenever the checkbox is toggled
+        # You can add any immediate response here if needed
+        pass
+
     def plot_ica_sources_direct(self):
         """Plot ICA sources directly through pipeline."""
         if not self.preprocessing_pipeline:

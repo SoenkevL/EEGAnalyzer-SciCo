@@ -116,7 +116,7 @@ class PreprocessingFrame(ttk.Frame):
         lp_frame.grid_columnconfigure(1, weight=1)
         
         ttk.Label(lp_frame, text="Low-pass (Hz):").grid(row=0, column=0, sticky="w", padx=(0, 5))
-        self.lp_var = tk.DoubleVar(value=50.0)
+        self.lp_var = tk.DoubleVar(value=40.0)
         lp_entry = ttk.Entry(lp_frame, textvariable=self.lp_var, width=8)
         lp_entry.grid(row=0, column=1, sticky="w", padx=(0, 5))
         
