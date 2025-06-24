@@ -59,17 +59,17 @@ class EEGPreprocessor:
         # Setup log file paths
         now = datetime.datetime.now()
         self.log_filename = f"{os.path.splitext(filepath)[0]}_preprocessing__{now:%Y_%m_%d_%H_%M_%S}.log"
-        
+
         # Configure MNE logging - this is the key fix!
         mne.set_log_level(log_level)
         mne.set_log_file(self.log_filename, output_format='%(asctime)s - MNE - %(levelname)s - %(message)s')
-        
+
         # Setup custom logger
         self.logger = logging.getLogger(f'EEGPreprocessor_{os.path.basename(filepath)}')
         self.logger.setLevel(getattr(logging, log_level.upper()))
-        
+
         self._setup_logging()
-        
+
         self.logger.info(f"Initializing EEG Preprocessor for {filepath}")
         self.logger.info(f"MNE logging configured to write to: {self.log_filename}")
         self.load_data(preload=preload)
@@ -81,18 +81,18 @@ class EEGPreprocessor:
             # File handler - append to the same file that MNE uses
             file_handler = logging.FileHandler(self.log_filename, mode='a')
             file_handler.setLevel(logging.DEBUG)
-            
+
             # Console handler
             console_handler = logging.StreamHandler()
             console_handler.setLevel(logging.INFO)
-            
+
             # Formatter
             formatter = logging.Formatter(
                 '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'
             )
             file_handler.setFormatter(formatter)
             console_handler.setFormatter(formatter)
-            
+
             # Add handlers
             self.logger.addHandler(file_handler)
             self.logger.addHandler(console_handler)
@@ -100,7 +100,7 @@ class EEGPreprocessor:
     def load_data(self, preload: bool = True) -> None:
         """Load EEG data with enhanced logging."""
         self.logger.info(f"Loading data from {self.filepath}")
-        
+
         try:
             # MNE will now automatically log to the file we specified
             if self.filepath.endswith('.edf'):
@@ -113,7 +113,7 @@ class EEGPreprocessor:
                 self.raw = mne.io.read_raw_bdf(self.filepath, preload=preload, verbose=True)
             else:
                 self.raw = mne.io.read_raw(self.filepath, preload=preload, verbose=True)
-            
+
             # Log detailed information about loaded data
             self.logger.info(f"Successfully loaded data: {len(self.raw.ch_names)} channels, "
                            f"{self.raw.info['sfreq']} Hz, {self.raw.times[-1]:.2f} seconds")
@@ -339,7 +339,7 @@ class EEGPreprocessor:
         """Apply bandpass filter with detailed logging."""
         filter_info = f"l_freq={l_freq}, h_freq={h_freq}, picks={picks}"
         self.logger.info(f"Applying filter: {filter_info}")
-        
+
         try:
             # MNE will log filter details to the file automatically
             self.raw.filter(
@@ -353,10 +353,10 @@ class EEGPreprocessor:
                 phase='zero',
                 verbose=True
             )
-            
+
             self.logger.info(f"Filter applied successfully: {filter_info}")
             self.preprocessing_history.append(f"Applied filter: {filter_info}")
-            
+
         except Exception as e:
             self.logger.error(f"Error applying filter: {str(e)}")
 
@@ -452,9 +452,9 @@ class EEGPreprocessor:
         self.preprocessing_history.append("Performed automatic artifact detection")
         return artifacts
     
-    def fit_ica(self, n_components: Optional[Union[int, float]] = None, 
+    def fit_ica(self, n_components: Optional[Union[int, float]] = None,
                 picks: Optional[Union[str, List[str]]] = None,
-                t_min: Optional[float] = 0, crop_duration: Optional[float] = None, 
+                t_min: Optional[float] = 0, crop_duration: Optional[float] = None,
                 filter_kwargs: Optional[Dict[str, Any]] = None,
                 plot_eeg=False, plot_block=False,
                 random_state: int = 42) -> None:
@@ -508,7 +508,7 @@ class EEGPreprocessor:
             n_components = min(len(raw_for_ica.ch_names), 25)
         
         self.logger.info(f"Fitting ICA with {n_components} components")
-        
+
         try:
             self.ica = ICA(
                 n_components=n_components,
@@ -637,7 +637,7 @@ class EEGPreprocessor:
         print(f"Marked components {components} for exclusion")
         self.preprocessing_history.append(f"Excluded ICA components: {components}")
         self.logger.info(f"Excluded ICA components: {components}")
-    
+
     def apply_ica(self, exclude: Optional[List[int]] = None) -> None:
         """
         Apply ICA to remove artifacts from the data.
@@ -662,13 +662,13 @@ class EEGPreprocessor:
         except Exception as e:
             print(f"Error applying ICA: {str(e)}")
 
-    def run_ica_fitting(self):
+    def run_ica_fitting(self, start, duration):
         # Fit ICA
         print("\n9. Fitting ICA...")
         ica_channels = [self.channel_categories.get(category, []) for category in ['EEG', 'EMG', 'ECG', 'EOG']]
         ica_channels = [channel for sublist in ica_channels for channel in sublist]
-        self.fit_ica(n_components=0.99, crop_duration=360,
-                     t_min=10,
+        self.fit_ica(n_components=15, crop_duration=duration,
+                     t_min=start,
                      picks=ica_channels,
                      filter_kwargs={
                          'l_freq': 1,
@@ -772,7 +772,7 @@ class EEGPreprocessor:
         ## Recategorize the channels
         self.categorize_channels()
 
-    def save_preprocessed(self, output_path: str, overwrite: bool = False, 
+    def save_preprocessed(self, output_path: str, overwrite: bool = False,
                          create_external_logfile: bool = True) -> None:
         """Save preprocessed data with logging.
 
@@ -786,22 +786,22 @@ class EEGPreprocessor:
             If the preprocessing summary should also be saved to a textfile
         """
         self.logger.info(f"Saving preprocessed data to {output_path}")
-        
+
         try:
             # Add preprocessing history to info
             self.raw.info['description'] = '; '.join(self.preprocessing_history)
             
             # MNE will log saving details to the file
             self.raw.save(output_path, overwrite=overwrite, verbose=True)
-            
+
             self.logger.info(f"Successfully saved preprocessed data to: {output_path}")
             self.preprocessing_history.append(f"Saved to: {output_path}")
-            
+
             if create_external_logfile:
                 output_path_ending = os.path.splitext(output_path)[1]
                 logpath = output_path.replace(output_path_ending, '.log')
                 self.preprocessing_summary_to_logfile(logpath)
-                
+
         except Exception as e:
             self.logger.error(f"Error saving file: {str(e)}")
 
@@ -809,12 +809,12 @@ class EEGPreprocessor:
         """Close the MNE log file and clean up handlers."""
         # Close MNE logging
         mne.set_log_file(None)
-        
+
         # Close custom logger handlers
         for handler in self.logger.handlers[:]:
             handler.close()
             self.logger.removeHandler(handler)
-        
+
         self.logger.info("Logging session closed")
 
     def __del__(self):

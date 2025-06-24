@@ -18,7 +18,7 @@ controls and options.
 """
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 from typing import Callable, Dict, Any
 
 
@@ -175,39 +175,45 @@ class PreprocessingFrame(ttk.Frame):
         self.resample_button.grid(row=0, column=2, sticky="w")
         
     def create_artifact_section(self, parent):
-        """Create artifact removal section."""
-        artifact_frame = ttk.LabelFrame(parent, text="Artifact Removal", padding=10)
+        """Create artifact detection and ICA section."""
+        artifact_frame = tk.LabelFrame(parent, text="Artifact Detection & ICA", padx=5, pady=5)
         artifact_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        # ICA training data range
+        ica_range_frame = tk.LabelFrame(artifact_frame, text="ICA Training Data Range", padx=5, pady=5)
+        ica_range_frame.pack(fill=tk.X, pady=5)
+
+        # Start value
+        start_frame = tk.Frame(ica_range_frame)
+        start_frame.pack(fill=tk.X, pady=2)
+        tk.Label(start_frame, text="Start (seconds):").pack(side=tk.LEFT)
+        self.ica_start_var = tk.IntVar(value=10)
+        self.ica_start_entry = tk.Entry(start_frame, textvariable=self.ica_start_var, width=10)
+        self.ica_start_entry.pack(side=tk.LEFT, padx=(5, 0))
+
+        # Stop value
+        stop_frame = tk.Frame(ica_range_frame)
+        stop_frame.pack(fill=tk.X, pady=2)
+        tk.Label(stop_frame, text="Stop (seconds):").pack(side=tk.LEFT)
+        self.ica_stop_var = tk.IntVar(value=370)
+        self.ica_stop_entry = tk.Entry(stop_frame, textvariable=self.ica_stop_var, width=10)
+        self.ica_stop_entry.pack(side=tk.LEFT, padx=(5, 0))
         
-        # # Bad channel detection
-        # self.bad_ch_button = ttk.Button(
-        #     artifact_frame,
-        #     text="Detect Bad Channels",
-        #     command=self.detect_bad_channels,
-        #     state=tk.DISABLED
-        # )
-        # self.bad_ch_button.pack(anchor=tk.W, pady=2)
-        #
-        # ICA controls in horizontal layout
-        ica_frame = ttk.Frame(artifact_frame)
-        ica_frame.pack(fill=tk.X, pady=2)
-        
-        self.fit_ica_button = ttk.Button(
-            ica_frame, 
-            text="Fit ICA", 
-            command=self.fit_ica,
-            state=tk.DISABLED,
-            width=12
-        )
+        # Help text
+        help_label = tk.Label(ica_range_frame, text="Leave stop empty to use all data from start",
+                             font=('TkDefaultFont', 8), fg='gray')
+        help_label.pack(pady=(2, 0))
+
+        # ICA buttons
+        ica_frame = tk.Frame(artifact_frame)
+        ica_frame.pack(fill=tk.X, pady=5)
+
+        self.fit_ica_button = tk.Button(ica_frame, text="Fit ICA",
+                                    command=self.fit_ica, state=tk.DISABLED)
         self.fit_ica_button.pack(side=tk.LEFT, padx=(0, 5))
         
-        self.apply_ica_button = ttk.Button(
-            ica_frame, 
-            text="Apply ICA", 
-            command=self.apply_ica,
-            state=tk.DISABLED,
-            width=12
-        )
+        self.apply_ica_button = tk.Button(ica_frame, text="Apply ICA",
+                                      command=self.apply_ica, state=tk.DISABLED)
         self.apply_ica_button.pack(side=tk.LEFT)
         
     def create_montage_section(self, parent):
@@ -256,20 +262,22 @@ class PreprocessingFrame(ttk.Frame):
         self.history_listbox.pack(side="left", fill="both", expand=True)
         history_scrollbar.pack(side="right", fill="y")
         
-    def enable_controls(self):
-        """Enable all preprocessing controls."""
-        self.controls_enabled = True
+    def enable_controls(self, enabled=True):
+        """Enable or disable all controls."""
+        self.controls_enabled = enabled
+        state = tk.NORMAL if enabled else tk.DISABLED
         
-        # Enable all buttons
-        buttons = [
-            self.hp_button, self.lp_button,
-            self.resample_button, self.fit_ica_button,
-            self.apply_ica_button, self.montage_button,
-            # self.bad_ch_button
-        ]
+        # Existing controls
+        self.hp_button.config(state=state)
+        self.lp_button.config(state=state)
+        self.resample_button.config(state=state)
+        self.fit_ica_button.config(state=state)
+        self.apply_ica_button.config(state=state)
+        self.montage_button.config(state=state)
         
-        for button in buttons:
-            button.config(state=tk.NORMAL)
+        # New ICA range entry fields
+        self.ica_start_entry.config(state=state)
+        self.ica_stop_entry.config(state=state)
             
     def update_history(self, history_list):
         """Update the preprocessing history display."""
@@ -316,12 +324,6 @@ class PreprocessingFrame(ttk.Frame):
     def detect_bad_channels(self):
         """Detect bad channels."""
         self.step_callback("detect_bad_channels", {})
-        
-    def fit_ica(self):
-        """Fit ICA and plot sources."""
-        self.step_callback("fit_ica", {})
-        # Request plotting of ICA sources after fitting
-        self.plot_callback("ica_components", {})
 
     def apply_ica(self):
         """Apply ICA to remove selected components."""
@@ -331,3 +333,29 @@ class PreprocessingFrame(ttk.Frame):
         """Set montage."""
         montage = self.montage_var.get()
         self.step_callback("fit_montage", {"montage": montage})
+
+    def fit_ica(self):
+        """Fit ICA with user-specified data range."""
+        try:
+            # Get start and stop values
+            start_val = self.ica_start_var.get()
+            stop_val = self.ica_stop_var.get()
+
+            # Validate and convert start value
+            start = start_val if start_val else 0
+
+            # Validate and convert stop value
+            stop = None
+            if stop_val:
+                stop = int(stop_val)
+                if stop <= start:
+                    tk.messagebox.showerror("Error", "Stop value must be greater than start value")
+                    return
+
+            # Call the preprocessing step with range parameters
+            duration = stop-start
+            self.step_callback('fit_ica', parameters={'start':start, 'duration':stop})
+            # Request plotting of ICA sources after fitting
+            self.plot_callback("ica_components", {})
+        except Exception as e:
+            tk.messagebox.showerror("Error", f"Failed to fit ICA: {str(e)}")
