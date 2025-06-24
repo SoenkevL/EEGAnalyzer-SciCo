@@ -179,15 +179,15 @@ class PreprocessingFrame(ttk.Frame):
         artifact_frame = ttk.LabelFrame(parent, text="Artifact Removal", padding=10)
         artifact_frame.pack(fill=tk.X, padx=5, pady=5)
         
-        # Bad channel detection
-        self.bad_ch_button = ttk.Button(
-            artifact_frame, 
-            text="Detect Bad Channels", 
-            command=self.detect_bad_channels,
-            state=tk.DISABLED
-        )
-        self.bad_ch_button.pack(anchor=tk.W, pady=2)
-        
+        # # Bad channel detection
+        # self.bad_ch_button = ttk.Button(
+        #     artifact_frame,
+        #     text="Detect Bad Channels",
+        #     command=self.detect_bad_channels,
+        #     state=tk.DISABLED
+        # )
+        # self.bad_ch_button.pack(anchor=tk.W, pady=2)
+        #
         # ICA controls in horizontal layout
         ica_frame = ttk.Frame(artifact_frame)
         ica_frame.pack(fill=tk.X, pady=2)

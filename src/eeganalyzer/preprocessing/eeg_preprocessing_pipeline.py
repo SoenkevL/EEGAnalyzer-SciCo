@@ -348,9 +348,6 @@ class EEGPreprocessor:
                 mark_channel_names.append(spectrum.ch_names[i])
         return mark_channel_names
 
-
-
-
     def detect_artifacts_automatic(self, ecg_channel: Optional[str]=None,
                                    eog_channels: Optional[Union[str | list[str]]]=None) -> Dict[str, List]:
         """
@@ -408,7 +405,7 @@ class EEGPreprocessor:
             Random state for reproducibility
         """
         if picks is None:
-            picks = 'all'
+            picks = 'data'
 
         # Prepare data for ICA
         raw_for_ica = self.raw.copy()

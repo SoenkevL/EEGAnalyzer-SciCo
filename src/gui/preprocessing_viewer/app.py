@@ -225,7 +225,8 @@ class PreprocessingViewerApp:
             elif step_name == "fit_montage":
                 self.preprocessing_pipeline.fit_montage(montage=parameters["montage"])
             elif step_name == "detect_bad_channels":
-                self.preprocessing_pipeline.detect_artifacts_automatic()
+                pass
+            #     self.preprocessing_pipeline.detect_artifacts_automatic()
             elif step_name == "fit_ica":
                 self.preprocessing_pipeline.run_ica_fitting()
                 self.on_plot_requested("ica_sources", {})
