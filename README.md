@@ -1,100 +1,131 @@
-# EEGAnalyzer - Scientific Coworker
+# EEGAnalyzer - Scientific EEG Analysis Tool
 
-A comprehensive tool for analyzing EEG data with a focus on customizable metric analysis. Originally designed to analyze the
-chaotic dynamics, complexity assessment, fractal-properties, and entropy of EEG signals for my Masters (https://essay.utwente.nl/104520/).  
-The idea of this project is to bring together some of the most powerful python libraries for biomedical timeseries analysis. These
-include mne for eeg processing, pandas to handle dataframes, neurokit2, and edge-of-py to provide the metrics for the analysis. 
-However, the most important thing is that any library that you want to work with can be incorporated quickly and easily.
+A comprehensive Python package for analyzing EEG data with customizable metrics and visualization capabilities. This
+tool provides a complete pipeline from raw EEG data processing to advanced analysis and visualization.
+
+## Overview
+
+EEGAnalyzer is designed to bring together powerful Python libraries for biomedical timeseries analysis, including MNE
+for EEG processing, pandas, sqlite, and SQLAlchemy for data handling, and various signal processing libraries. The tool offers a modular
+architecture that makes it easy to incorporate custom analysis functions and extend functionality.
 
 ## Features
 
-- **Analysis Capabilities**:
-  - Custom python functions
-  - Example includes:
-    - Chaotic dynamics analysis
-    - Complexity metrics evaluation
-    - Fractal property detection
-    - Entropy calculation methods
+### Core Analysis Capabilities
 
-- **Modular Architecture**:
-  - An example on GitHub showing the whole process you need to analyze your eegs. 
-  - Extensible design for easily adding custom functions as metrics
-  - Supports 1D and 2D timeseries data
-  - Primarily written for EEG analysis while also providing functionality for other csv data in timeseries format.
+- **Signal Processing**: Comprehensive EEG preprocessing with filtering, artifact removal, and channel interpolation
+- **Metric Analysis**: Customizable metrics including chaotic dynamics, complexity assessment, fractal properties, and
+  entropy calculations
+- **Flexible Data Support**: Works with various EEG file formats (EDF, BDF, GDF, BrainVision, CNT, EEGLAB)
+- **Batch Processing**: Process entire folder structures with subfolder support
 
-- **Configuration**:
-  - Adjustable parameters for analysis focused on timeseries.
-  - Full folder (and subfolder) structures can be processed at once.
-  - Ability to include only certain files based on a name
-  - Full control over the output directories of the computed metrics
-  - Parameters for epoching like start, stop, duration, and window overlap
-  - Filtering
-  - Integration with annotations of edf files to include only annotated data segments and exclude bad channels
-  - Choosing predefined sets of metrics (python functions) to be applied to the data
+### Modular Architecture
 
-- **Logging System**:
-  - Track processing information for better debugging and monitoring
+- **Extensible Design**: Easy integration of custom analysis functions
+- **Configuration-Based**: YAML configuration files for flexible parameter control
+- **Database Integration**: SQLite database for efficient metric storage and comparison
+- **Command-Line Interface**: Simple CLI for automated processing workflows
 
-- **Output Format**:
-  - Metrics saved in standardized CSV format
-  - Additionally, creates a relational database allowing easy comparison of metrics with each other and the original eeg files
-  - Provides a simple GUI to visualize the metrics and compare them to the original eeg files
+### Visualization & Analysis
 
-## Requirements
-- Python 3.8+
-- Vor visualizations:
-  - QT
-    - on ubuntu, see the following link: https://web.stanford.edu/dept/cs_edu/resources/qt/install-linux
-    - on arch, install using pacman: `sudo pacman -S qtcreator`
-  - Tk
-    - on ubuntu, install using apt: `sudo apt-get -y install tk`
-    - on arch, install using pacman: `sudo pacman -S tk`
+- **CLI**: Command-line interface for Metric analysis and preprocessing (preprocessing still limited)
+- **GUI Viewer**: Interactive visualization of computed metrics and original EEG data
+- **MNE Integration**: Seamless plotting capabilities with MNE-Python
+- **Export Options**: Standardized CSV output format for further analysis
 
 ## Installation
 
-We recommend installing the package within a virtual environment.
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
+### Prerequisites
 
-### From PyPi
-```bash
-pip install eeganalyzer-scico
-```
+- Python 3.8+
+- Additional system dependencies for visualization:
+    - **QT**: For GUI functionality
+        - Ubuntu:
+          Follow [Stanford's QT installation guide](https://web.stanford.edu/dept/cs_edu/resources/qt/install-linux)
+        - Arch: `sudo pacman -S qtcreator`
+    - **Tk**: For additional GUI components
+        - Ubuntu: `sudo apt-get -y install tk`
+        - Arch: `sudo pacman -S tk`
 
-### From source
-```bash
+### Installation Options
+
+#### Option 1: From Source 
+Recommended for research as it is more adaptable and kept up to date.
+
+I highly recommend forking the project beforehand to ensure the pipeline or functions dont change during your research. 
+When you create your fork, exchange the path to the forked repository in the command below. Remember to use SSH instead of HTTPS if you want to sync with your fork using an SSHKey.
+
+``` bash
+# Clone repository
 git clone https://github.com/SoenkevL/EEGAnalyzer.git
 cd EEGAnalyzer
-```
-```bash
+
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install in development mode
 pip install -e .
 ```
 
-## Using the Command-line Interface
-Once installed as a package, you can use the command-line interface:
+#### Option 2: From PyPI
+I try to keep it updated whenever a version changes. 
+This is most useful to get first experience with the tool or use it in its default configuration.
 
-To analyze eegs:
 ```bash
-eeganalyzer --yaml_config <path_to_config_file> --logfile_path <path_to_log_file>
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install package
+pip install eeganalyzer-scico
 ```
 
-Arguments:
-- `--yaml_config`: Path to the YAML configuration file (required)
-- `--logfile_path`: Path to the log file (optional)
+## Usage
 
-and to visualize the metrics and compare them to the original eeg files:
-```bash
-eegviwer --sql_path <path_to_sqlite_database>
+### Command-Line Interface
+
+#### EEG Analysis
+
+``` bash
+eeganalyzer --yaml_config <config_file> --logfile_path <log_file>
 ```
-Arguments:
-- `--sql_path`: Path to the SQLite database (required) 
-## Using the Python API
 
-You can also use the package as a Python library:
+**Arguments:**
 
-```python
+- `--yaml_config`: Path to YAML configuration file (required)
+- `--logfile_path`: Path to log file (optional)
+
+#### Visualization
+
+``` bash
+eegviewer --sql_path <database_path>
+```
+
+**Arguments:**
+
+- `--sql_path`: Path to SQLite database file (required)
+
+#### EEG Preprocessing
+
+For interactive EEG preprocessing with visual feedback:
+
+``` bash
+python run_preprocessing_viewer.py
+```
+
+Launch the interactive preprocessing GUI that provides:
+- Visual, step-by-step data processing
+- Real-time visualization of preprocessing effects
+- Interactive ICA component selection and artifact removal
+- Support for multiple EEG file formats (EDF, BDF, GDF, BrainVision, CNT, EEGLAB, FIF)
+- Save preprocessed data in various formats
+
+### Python API
+
+#### Standard Analysis
+
+``` python
 from src.eeganalyzer.core.processor import process_experiment
 from src.eeganalyzer.utils.config import load_yaml_file
 
@@ -105,91 +136,106 @@ config = load_yaml_file('config.yaml')
 process_experiment(config, 'results/analysis.log')
 ```
 
-## Example Analysis
-### 1. Follow the installation instructions
-Make sure you have installed the package as described above. If you decide you install the package via pip and not from
- source, please make sure you still clone the GitHub to have all example and preprocessing files at hand.
+#### Programmatic Preprocessing
 
-### 2. Prepare example data directory structure
+``` python
+from eeganalyzer.preprocessing.eeg_preprocessing_pipeline import EEGPreprocessor
 
-```
-mkdir -p example/eeg
-```
+# Initialize and load data
+preprocessor = EEGPreprocessor('path/to/eeg_file.edf')
+preprocessor.categorize_channels()
 
-### 3. Move a downloaded file to the correct location
+# Apply preprocessing chain
+preprocessor.apply_filter(l_freq=1.0, h_freq=40.0)  # Bandpass filter
+preprocessor.resample_data(sfreq=250)               # Downsample
+preprocessor.fit_ica()                              # ICA fitting
+preprocessor.exclude_ica_components([0, 1, 2])     # Remove artifacts
+preprocessor.interpolate_bad_channels()             # Fix bad channels
 
-Now we need to download an example eeg to test the pipeline on.
-Any eeg file in fif format can be used.
-
-For example, I recommend using the file PN00-1.edf from the following link.
-https://www.kaggle.com/datasets/abhishekinnvonix/seina-scalp-epilepsy-dataset?resource=download (14.10.2024)  
-The data comes from a platform called kaggle which provides open source data and code exchange for people interested
-in the machine learning community. An account may be required to download the data but is completely without cost.
-The downloaded file will be a zip, extract it to the root directory in which you currently are.
-Additional edf files could be downloaded from the link. We focus only on using one in this example. \
-After downloading the file, move it to the right folder with the following command
-```
-mv PN00-1.edf example/eeg/PN001-original.edf
+# Save results
+preprocessor.save_preprocessed('clean_eeg.fif')
 ```
 
-### 4. Preprocessing the file (optional)
+### Preprocessing Workflow
 
-There are multiple possible approaches for Preprocessing the eeg in the folder *eeg_reading_and_preprocessing*.
-1. Navigate to the folder and use the ipython notebook for an interactive experience
-2. Use the *preprocess_and_inspect.py* file to inspect the data without relying on ipython notebooks
+The preprocessing functionality offers both interactive and programmatic approaches:
+
+**Key Preprocessing Operations:**
+- **Filtering**: Highpass, lowpass, and bandpass filters
+- **Resampling**: Adjust sampling frequency for analysis requirements
+- **Channel Management**: Automatic bad channel detection and interpolation
+- **ICA Analysis**: Independent Component Analysis for artifact removal
+- **Montage Fitting**: Electrode positioning and coordinate systems
+- **Artifact Detection**: Automated identification of flat channels and noise
+
+The preprocessing module integrates seamlessly with the main analysis pipeline, allowing you to preprocess data interactively and then proceed with automated metric computation.
+
+## Project Structure
 ```
-python3 eeg_reading_and_preprocessing/preprocess_and_inspect.py
-```
-3. Use the *preprocess_fast.py* to do the bare minimum preprocessing to execute the last step without any visual or textual outputs
-```
-python3 eeg_reading_and_preprocessing/preprocess_fast.py
-```
-
-For the following steps the original edf file will be used again and processed internally during the pipeline.
-It is recommended, however, to preprocess the file manually beforehand to see what changes in filters, sampling frequency, and montage do to the EEG.
-
-### 5. Inspecting the configuration and metrics file
-
-Processing the eeg exactly how the user needs it is mainly defined by two files.
-1. The config.yaml file: Here we set processing parameters like filters, montages, epoches, inclusion criteria, etc.
-2. The metrics.py file: Here we set the metrics and import the libraries that we want to compute on our files.  
-Both files have example versions in the example folder on our GitHub.
-
-### 6. Run the main script with configuration
-
-To calculate the metrics on our eeg files, we can run the example configuration using the following command.    
-This will create the metrics and a log file, alternatively the command can be run without the logfile argument to see the output in the terminal.  
-Make sure you are inside the project root with the virtual environment activated and the requirements installed.
-
-```
-    eeganalyzer \
-    --yaml_config example/example_config_eeg.yaml \
-    --logfile_path example/test.log
+EEGAnalyzer/
+├── src/
+│   ├── eeganalyzer/           # Main package
+│   │   ├── cli/              # Command-line interface
+│   │   ├── core/             # Core processing logic
+│   │   ├── preprocessing/    # EEG preprocessing modules
+│   │   └── utils/            # Utility functions
+│   └── gui/                  # GUI components
+├── example/                  # Example configurations and data
+│   ├── example_config_eeg.yaml
+│   ├── metrics.py
+│   └── metric_analysis_example.py
+├── tests/                   # Test suites (not implemented yet)
+├── requirements.txt
+├── pyproject.toml
+└── README.md
 ```
 
-### 7. Analyzing the produced metrics
+## Configuration
 
-Now that we created two csv files and saved our data to our database, we can go ahead and do some analysis on it.
-This can either be done in the GUI or in python.
-For the gui simply run
-```bash
-eegviewer example/EEGAnalyzer.sqlite
-```
-In case you have problems with QT at this point and did not do preprocessing, please see the section above for possible fixes.
+The tool uses YAML configuration files to control processing parameters for the Analysis functionallity:
 
-Alternatively, you can use python to do the analysis directly on the database or the computed csv files.
-```
-python3 example/metric_analysis_example.py
-```
-### 8. Summary
+- **Signal Processing**: Filtering, sampling rates, montage settings
+- **Epoching**: Start/stop times, duration, window overlap
+- **File Processing**: Inclusion criteria, output directories
+- **Metrics**: Selection of analysis functions to apply
 
-The provided example is intended as guidance to this pipeline. It can't show all the things that it can do, and now is the point
-where you need to start experimenting with it yourself.
+## Quick Start Example
 
-## Personal Note
-To end on a personal note: In data analysis, it is hard to find a one-fits-all approach. On the one hand, the analysis of your data
-should be a carefully pre-planned step of the final analysis. On the other hand, it can be exhilarating and interesting to
-explore Data, its sampling parameters and different metrics to try understanding a part of the world from it.  
-Data, and especially the way it is displayed, is very much subject to the experimenter and analyst.
-Therefore, I want to remind anyone that you should not make your data fit your thesis but test your
-thesis with your data by closely thinking about what you analyze and why. 
+1. **Install the package** following the installation instructions above
+2. **Prepare data structure**:
+    1. Create a directory for the analysis
+        ``` bash
+           mkdir -p example/eeg
+        ```
+    2. **Download example data**: Get an EEG file (e.g., from Kaggle's SEINA dataset) and place it in the directory
+       `example/eeg/`
+3. **Preprocess the file**:
+   1. using the gui
+        ``` bash
+           python run_preprocessing_viewer.py
+        ```
+      Here select the eeg you have just added to your eeg example folder using the File section at the top right.
+4. **Run analysis**:
+   1.   ``` bash
+          eeganalyzer --yaml_config example/example_config_eeg.yaml --logfile_path example/test.log
+        ```
+
+5. **Visualize results**:
+    1. ``` bash
+           eegviewer example/EEGAnalyzer.sqlite
+        ```
+
+## Contributing
+
+This project is open for contributions. The modular design makes it easy to add new analysis functions, file format
+support, or visualization features.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0. See the LICENSE file for details.
+
+## Support
+
+For issues, questions, or contributions, please visit the project repository or contact the maintainers.
+_EEGAnalyzer was originally developed for Masters thesis research on chaotic dynamics analysis of EEG signals. It has
+evolved into a comprehensive tool for the broader EEG analysis community._

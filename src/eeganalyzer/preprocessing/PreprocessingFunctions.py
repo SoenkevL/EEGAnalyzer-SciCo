@@ -15,8 +15,11 @@ def print_all_builtin_montages():
     for montage_name, montage_description in builtin_montages:
         print(f"{montage_name}: {montage_description}")
 
+def make_montage(montage_name):
+   return mne.channels.make_standard_montage(montage_name)
+
 def show_example_montage(montage_name):
-    montage = mne.channels.make_standard_montage(montage_name)
+    montage = make_montage(montage_name)
     print(montage)
     montage.plot()  # 2D
     fig = montage.plot(kind="3d", show=False)  # 3D
@@ -24,7 +27,6 @@ def show_example_montage(montage_name):
     fig.show()
     return montage
 
-#TODO: check Ai written code for matching of channel names and see if i should fuse/remove old functions, also check the code
 def normalize_electrode_name(name):
     """Extract and normalize electrode name from various formats"""
     # Remove common prefixes (case insensitive)
@@ -33,7 +35,6 @@ def normalize_electrode_name(name):
     name = name.strip()
     return name
 
-
 def find_best_match(raw_name, montage_list, similarity_threshold):
     """Find the best matching electrode from montage list"""
     normalized_raw = normalize_electrode_name(raw_name)
@@ -41,6 +42,13 @@ def find_best_match(raw_name, montage_list, similarity_threshold):
     # First try exact match (case insensitive)
     for electrode in montage_list:
         if normalized_raw.lower() == electrode.lower():
+            return electrode
+
+    # Then check if the name of the electrode is in the name of the raw channel,
+    # montage list needs to be sorted by length of string first to ensure the result to be as specific as possible
+    sorted_montage_list = sorted(montage_list, key=len, reverse=True)
+    for electrode in sorted_montage_list:
+        if electrode.lower() in normalized_raw.lower():
             return electrode
 
     # Then try fuzzy matching
@@ -55,7 +63,6 @@ def find_best_match(raw_name, montage_list, similarity_threshold):
             best_match = electrode
 
     return best_match
-
 
 def create_electrode_mapping(montage_electrodes, raw_channel_names, similarity_threshold=0.8):
     """
@@ -128,8 +135,7 @@ def test_create_electrode_mapping():
     print(f"\nRename dictionary for MNE:")
     pprint(rename_dict)
 
-# Function to apply mapping to rename channels
-def apply_electrode_mapping(raw_object, mapping):
+def apply_electrode_mapping(mapping):
     """
     Apply the electrode mapping to rename channels in a raw object.
     This assumes you're using MNE-Python or similar library.
@@ -142,8 +148,6 @@ def apply_electrode_mapping(raw_object, mapping):
 
     return rename_dict
 
-
-### end new code
 def only_keep_10_20_channels_and_check_bipolar(raw):
     """
     Checks the EEG channels for containing a valid part, only once and no part that is marked as invalid in order to
@@ -176,7 +180,6 @@ def only_keep_10_20_channels_and_check_bipolar(raw):
     raw.info['bads'] = list(set(raw.info['bads']))
     return duplicate_positive
 
-
 def convert_electrode_names_to_channel_names(electrode_names: list[str], channel_names: list[str]):
     '''
     Goes through the electrode names and converts them to channel names if the electrode name is part of the channel name
@@ -194,7 +197,6 @@ def convert_electrode_names_to_channel_names(electrode_names: list[str], channel
                 output_array[i] = c_name
                 break
     return output_array
-
 
 def ensure_electrodes_present(anodes, cathods, new_names):
     '''
@@ -220,7 +222,6 @@ def ensure_electrodes_present(anodes, cathods, new_names):
     anodes = [a for i, a in enumerate(anodes) if i not in drop_idx]
     cathods = [c for i, c in enumerate(cathods) if i not in drop_idx]
     return anodes, cathods, new_names, droped_names
-
 
 def change_montage(raw: mne.io.Raw, montage: str):
     '''
@@ -296,7 +297,6 @@ def change_montage(raw: mne.io.Raw, montage: str):
         print(f'The given montage is not a viable option or a channel of the raw_internal object, no montage applied')
     return raw_internal
 
-
 def check_bad_channels_nk(raw):
     '''
     Runs the neurokit implementation of bad channel checking on the raw eeg instance and also sets the index of the
@@ -311,7 +311,6 @@ def check_bad_channels_nk(raw):
     bads, badchannels_df = nk.eeg_badchannels(raw, show=False, bad_threshold=0.2)
     badchannels_df.index = raw.pick(picks='eeg', exclude='bads').ch_names
     return bads, badchannels_df
-
 
 def add_channels_to_bads(raw, bad_channel_names, method='add'):
     '''
@@ -330,7 +329,6 @@ def add_channels_to_bads(raw, bad_channel_names, method='add'):
         raw.info['bads'] = [ch for ch in raw.ch_names if ch in bad_channel_names]
     raw.info['bads'] = list(set(raw.info['bads']))
     return raw
-
 
 def update_annotations_suzanne(raw, annot_path, sampleSignalPath, method='add', recompute=False):
     '''
@@ -368,7 +366,6 @@ def update_annotations_suzanne(raw, annot_path, sampleSignalPath, method='add', 
     else:
         ic('kept original annotations as none could be extracted')
     return raw
-
 
 def create_continues_annot_from_start_stop_keys(input, start_key, stop_key, new_label, start_time = None):
     '''
@@ -418,7 +415,6 @@ def create_continues_annot_from_start_stop_keys(input, start_key, stop_key, new_
     else:
         input.set_annotations(continuos_annots)
         return input
-
 
 def find_eog_events(raw, thresh) -> list:
     """
@@ -569,7 +565,6 @@ def find_optimal_epochs(raw: mne.io.Raw,
                              orig_time=original_onset_time)
     new_annots = annots + original_annots
     return new_annots
-
 
 def create_subject_num_string(subject_num, max_0s_prepend=2):
     '''
