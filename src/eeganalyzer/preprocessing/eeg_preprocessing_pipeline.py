@@ -55,7 +55,8 @@ class EEGPreprocessor:
         self.preprocessing_history = []
         
         # Setup log file paths
-        self.log_filename = f"{os.path.splitext(filepath)[0]}_preprocessing.log"
+        now = datetime.datetime.now()
+        self.log_filename = f"{os.path.splitext(filepath)[0]}_preprocessing__{now:%Y_%m_%d_%H_%M_%S}.log"
         
         # Configure MNE logging - this is the key fix!
         mne.set_log_level(log_level)
@@ -602,6 +603,7 @@ class EEGPreprocessor:
         self.ica.exclude = components
         print(f"Marked components {components} for exclusion")
         self.preprocessing_history.append(f"Excluded ICA components: {components}")
+        self.logger.info(f"Excluded ICA components: {components}")
     
     def apply_ica(self, exclude: Optional[List[int]] = None) -> None:
         """
@@ -620,7 +622,7 @@ class EEGPreprocessor:
             self.ica.exclude = exclude
         
         try:
-            self.ica.apply(self.raw)
+            self.ica.apply(self.raw, verbose=True)
             excluded = self.ica.exclude
             print(f"Applied ICA, excluded components: {excluded}")
             self.preprocessing_history.append(f"Applied ICA, excluded: {excluded}")
@@ -676,8 +678,8 @@ class EEGPreprocessor:
             List of channel names to mark as bad
         """
         self.raw.info['bads'].extend([ch for ch in bad_channels if ch not in self.raw.info['bads']])
-        print(f"Marked channels as bad: {bad_channels}")
-        print(f"Total bad channels: {self.raw.info['bads']}")
+        self.logger.info(f"Marked channels as bad: {bad_channels}")
+        self.logger.info(f"Total bad channels: {self.raw.info['bads']}")
         self.preprocessing_history.append(f"Marked bad channels: {bad_channels}")
     
     def interpolate_bad_channels(self) -> None:
@@ -697,7 +699,7 @@ class EEGPreprocessor:
         try:
             montage_obj = mne.channels.make_standard_montage(montage)
             self.raw.set_montage(montage_obj, match_case=False, on_missing='warn')
-            print(f"Set montage: {montage}")
+            self.logger.info(f"Set montage: {montage}")
             self.preprocessing_history.append(f"Set montage: {montage}")
         except Exception as e:
             print(f"Error setting montage: {str(e)}")
@@ -725,6 +727,9 @@ class EEGPreprocessor:
         raw_orig_ch_names = self.raw.ch_names
         montage_ch_names = montage.ch_names
         mapping_dict, unmatched = create_electrode_mapping(montage_ch_names, raw_orig_ch_names)
+        self.logger.info('Creating channel name mapping to fit a montage')
+        self.logger.info(mapping_dict)
+        self.logger.info(f'Could not match channels: {unmatched}')
         ## Rename channel names
         self.rename_channels(mapping_dict)
         ## Apply electrode
