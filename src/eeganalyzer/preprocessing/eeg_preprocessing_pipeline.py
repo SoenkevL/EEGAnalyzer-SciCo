@@ -576,12 +576,13 @@ class EEGPreprocessor:
         except Exception as e:
             print(f"Error applying ICA: {str(e)}")
 
-    def run_ica_fitting(self):
+    def run_ica_fitting(self, start, duration):
         # Fit ICA
         print("\n9. Fitting ICA...")
         ica_channels = [self.channel_categories.get(category, []) for category in ['EEG', 'EMG', 'ECG', 'EOG']]
         ica_channels = [channel for sublist in ica_channels for channel in sublist]
-        self.fit_ica(n_components=15, crop_duration=60,
+        self.fit_ica(n_components=15, crop_duration=duration,
+                     t_min=start,
                      picks=ica_channels,
                      filter_kwargs={
                          'l_freq': 1,
