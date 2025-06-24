@@ -161,7 +161,7 @@ class PreprocessingFrame(ttk.Frame):
         controls_frame.grid_columnconfigure(1, weight=1)
         
         ttk.Label(controls_frame, text="Sampling rate (Hz):").grid(row=0, column=0, sticky="w", padx=(0, 5))
-        self.resample_var = tk.DoubleVar(value=250.0)
+        self.resample_var = tk.DoubleVar(value=1450.0)
         resample_entry = ttk.Entry(controls_frame, textvariable=self.resample_var, width=8)
         resample_entry.grid(row=0, column=1, sticky="w", padx=(0, 5))
         

@@ -137,7 +137,7 @@ class EEGPreprocessor:
         annot_path = self.filepath.replace('original.edf', 'annot-sz.mat')
         update_annotations_suzanne(self.raw, annot_path, self.filepath, method='replace', recompute=False)
 
-    def categorize_channels(self, mark_unclassified_as_bad = False,
+    def categorize_channels_legacy(self, mark_unclassified_as_bad = False,
                             patterns=None, merge_with_default=True,
                             save_types_in_info=True) -> Dict[str, List[str]]:
         """
@@ -194,7 +194,19 @@ class EEGPreprocessor:
             self.preprocessing_history.append("Marked unclassified channels as bad")
             self.logger.info('marked unclassified channels as bad')
         return self.channel_categories
-    
+
+    def categorize_channels(self, mark_unclassified_as_bad=False):
+        CUSTOM_PATTERNS = {
+            'EOG': [
+                r'.*Ref-?1.*',  # Matches anything containing 'Ref-0' or 'Ref0'
+            ],
+            'ECG': [
+                r'.*[Ii][Nn].*',  # Matches anything containing 'In' or 'ln' (case insensitive)
+            ]
+        }
+        return self.categorize_channels(patterns=CUSTOM_PATTERNS, merge_with_default=True,
+                                                mark_unclassified_as_bad=mark_unclassified_as_bad)
+
     def print_channel_info(self) -> None:
         """Print detailed information about channels and their categories."""
         print("\n" + "="*60)
