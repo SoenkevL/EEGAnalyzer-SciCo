@@ -263,8 +263,9 @@ class PreprocessingFrame(ttk.Frame):
         # Enable all buttons
         buttons = [
             self.hp_button, self.lp_button,
-            self.resample_button, self.bad_ch_button, self.fit_ica_button,
-            self.apply_ica_button, self.montage_button
+            self.resample_button, self.fit_ica_button,
+            self.apply_ica_button, self.montage_button,
+            # self.bad_ch_button
         ]
         
         for button in buttons:

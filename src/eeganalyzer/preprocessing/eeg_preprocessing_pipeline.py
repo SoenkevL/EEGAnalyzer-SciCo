@@ -18,6 +18,7 @@ from pprint import pprint
 from eeganalyzer.preprocessing.channel_regex_patterns import get_default_patterns, merge_patterns, get_mne_channel_types
 import argparse
 import os
+import datetime
 
 # Configure MNE settings
 mne.set_config('MNE_BROWSER_BACKEND', 'qt')
@@ -680,7 +681,7 @@ class EEGPreprocessor:
         ## Recategorize the channels
         self.categorize_channels()
 
-    def save_preprocessed(self, output_path: str, overwrite: bool = False) -> None:
+    def save_preprocessed(self, output_path: str, overwrite: bool = False, create_external_logfile: bool = True) -> None:
         """
         Save preprocessed data to file.
         
@@ -690,6 +691,8 @@ class EEGPreprocessor:
             Path for output file
         overwrite : bool, default=False
             Whether to overwrite existing file
+        create_external_logfile: bool, default=False
+            If the preprocessing summary should also be saved to a textfile
         """
         try:
             # Add preprocessing history to info
@@ -698,6 +701,10 @@ class EEGPreprocessor:
             self.raw.save(output_path, overwrite=overwrite)
             print(f"Saved preprocessed data to: {output_path}")
             self.preprocessing_history.append(f"Saved to: {output_path}")
+            if create_external_logfile:
+                output_path_ending = os.path.splitext(output_path)[1]
+                logpath = output_path.replace(output_path_ending, '.log')
+                self.preprocessing_summary_to_logfile(logpath)
         except Exception as e:
             print(f"Error saving file: {str(e)}")
     
@@ -710,8 +717,10 @@ class EEGPreprocessor:
         str
             Summary of preprocessing steps
         """
+        now = datetime.datetime.now()
         summary = "\n" + "="*60 + "\n"
         summary += "PREPROCESSING SUMMARY\n"
+        summary += f'{now:%c}\n'
         summary += "="*60 + "\n"
         summary += f"File: {self.filepath}\n"
         summary += f"Channels: {len(self.raw.ch_names)} total\n"
@@ -724,6 +733,27 @@ class EEGPreprocessor:
             summary += f"{i:2d}. {step}\n"
         summary += "="*60
         return summary
+
+    def preprocessing_summary_to_logfile(self, filepath):
+        """
+        Save preprocessing summary to a log file.
+
+        Parameters
+        ----------
+        filepath : str
+            Path to save the log file
+        """
+
+        # Check if filepath exists
+        if not os.path.exists(filepath):
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        try:
+            with open(filepath, 'w') as f:
+                f.write(self.get_preprocessing_summary())
+            print(f"Saved preprocessing summary to: {filepath}")
+            self.preprocessing_history.append(f"Saved preprocessing summary to: {filepath}")
+        except Exception as e:
+            print(f"Error saving preprocessing summary: {str(e)}")
 
     def rename_channels(self, mapping: Dict):
         """
