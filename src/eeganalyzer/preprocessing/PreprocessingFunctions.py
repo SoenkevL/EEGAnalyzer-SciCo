@@ -354,7 +354,7 @@ def update_annotations_suzanne(raw, annot_path, sampleSignalPath, method='add', 
     annotations_sz = annotations_sz['annotations']
     # set new annotations
     if annotations_sz:
-        new_annots = mne.Annotations(annotations_sz['startDataRecord'], annotations_sz['duration'], annotations_sz['label'])
+        new_annots = mne.Annotations(annotations_sz['startDataRecord'], annotations_sz['duration'], annotations_sz['label'], orig_time=raw.annotations.orig_time)
         original_annots = raw.annotations  # save the original annotations
         if method == 'add':
             annots = original_annots + new_annots

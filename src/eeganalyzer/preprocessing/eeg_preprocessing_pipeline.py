@@ -117,12 +117,26 @@ class EEGPreprocessor:
                            f"{self.raw.info['sfreq']} Hz, {self.raw.times[-1]:.2f} seconds")
             self.logger.debug(f"Data info: {self.raw.info}")
 
+
+            # There is a problem with the annotations in the edf files so we need to update them from custom matlab files
+            self._add_custom_annot()
+            self.logger.info('Updated annotations from .mat files')
+
             self.preprocessing_history.append(f"Loaded data from {self.filepath}")
             
         except Exception as e:
             self.logger.error(f"Failed to load data from {self.filepath}: {str(e)}")
             raise ValueError(f"Failed to load data from {self.filepath}: {str(e)}")
-    
+
+    def _add_custom_annot(self):
+        """
+        Custom function to deal with the EIRatio annotations to load from the matlab files from my master
+        Returns:
+            None
+        """
+        annot_path = self.filepath.replace('original.edf', 'annot-sz.mat')
+        update_annotations_suzanne(self.raw, annot_path, self.filepath, method='replace', recompute=False)
+
     def categorize_channels(self, mark_unclassified_as_bad = False,
                             patterns=None, merge_with_default=True,
                             save_types_in_info=True) -> Dict[str, List[str]]:
