@@ -53,7 +53,9 @@ class EEGPreprocessor:
         self.ica = None
         self.channel_categories = {}
         self.preprocessing_history = []
-        
+        self.filename = f'{os.path.splitext(os.path.split(self.filepath)[1])[0]}'
+
+        self.preprocessing_history.append(f'->{self.filename}<-')
         # Setup log file paths
         now = datetime.datetime.now()
         self.log_filename = f"{os.path.splitext(filepath)[0]}_preprocessing__{now:%Y_%m_%d_%H_%M_%S}.log"
@@ -137,7 +139,7 @@ class EEGPreprocessor:
         annot_path = self.filepath.replace('original.edf', 'annot-sz.mat')
         update_annotations_suzanne(self.raw, annot_path, self.filepath, method='replace', recompute=False)
 
-    def categorize_channels_legacy(self, mark_unclassified_as_bad = False,
+    def categorize_channels_orig(self, mark_unclassified_as_bad = False,
                             patterns=None, merge_with_default=True,
                             save_types_in_info=True) -> Dict[str, List[str]]:
         """
@@ -198,13 +200,13 @@ class EEGPreprocessor:
     def categorize_channels(self, mark_unclassified_as_bad=False):
         CUSTOM_PATTERNS = {
             'EOG': [
-                r'.*Ref-?1.*',  # Matches anything containing 'Ref-0' or 'Ref0'
+                r'.*Ref-?2.*',  # Matches anything containing 'Ref-0' or 'Ref0'
             ],
             'ECG': [
                 r'.*[Ii][Nn].*',  # Matches anything containing 'In' or 'ln' (case insensitive)
             ]
         }
-        return self.categorize_channels(patterns=CUSTOM_PATTERNS, merge_with_default=True,
+        return self.categorize_channels_orig(patterns=CUSTOM_PATTERNS, merge_with_default=True,
                                                 mark_unclassified_as_bad=mark_unclassified_as_bad)
 
     def print_channel_info(self) -> None:
@@ -397,6 +399,7 @@ class EEGPreprocessor:
         List
             A list of names of the channels identified as flat.
         """
+        self.logger.info('Finding flat channels based on filtered PSD (1-40Hz)')
         temp_raw = self.raw.copy()
         temp_raw = temp_raw.filter(l_freq=l_freq, h_freq=h_freq)
         spectrum = temp_raw.compute_psd(fmax=h_freq+5)
@@ -412,6 +415,10 @@ class EEGPreprocessor:
         for i, row in enumerate(flat_freqs):
             if np.sum(row) >= number_freq_bins*f_ratio_flat:
                 mark_channel_names.append(spectrum.ch_names[i])
+        if mark_channel_names:
+            self.logger.info(f'found flat channels: {mark_channel_names}')
+        else:
+            self.logger.info('No flat channels found')
         return mark_channel_names
 
     def detect_artifacts_automatic(self, ecg_channel: Optional[str]=None,
@@ -660,7 +667,8 @@ class EEGPreprocessor:
         print("\n9. Fitting ICA...")
         ica_channels = [self.channel_categories.get(category, []) for category in ['EEG', 'EMG', 'ECG', 'EOG']]
         ica_channels = [channel for sublist in ica_channels for channel in sublist]
-        self.fit_ica(n_components=15, crop_duration=60,
+        self.fit_ica(n_components=0.99, crop_duration=360,
+                     t_min=10,
                      picks=ica_channels,
                      filter_kwargs={
                          'l_freq': 1,
@@ -750,7 +758,8 @@ class EEGPreprocessor:
         else:
             montage = make_montage(montage_name)
         ## Create electrode mapping
-        raw_orig_ch_names = self.raw.ch_names
+        temp_copy = self.raw.copy()
+        raw_orig_ch_names = temp_copy.pick('eeg', exclude='bads').ch_names
         montage_ch_names = montage.ch_names
         mapping_dict, unmatched = create_electrode_mapping(montage_ch_names, raw_orig_ch_names)
         self.logger.info('Creating channel name mapping to fit a montage')

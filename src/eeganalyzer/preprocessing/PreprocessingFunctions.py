@@ -48,7 +48,7 @@ def find_best_match(raw_name, montage_list, similarity_threshold):
     # montage list needs to be sorted by length of string first to ensure the result to be as specific as possible
     sorted_montage_list = sorted(montage_list, key=len, reverse=True)
     for electrode in sorted_montage_list:
-        if electrode.lower() in normalized_raw.lower():
+        if electrode in normalized_raw:
             return electrode
 
     # Then try fuzzy matching
