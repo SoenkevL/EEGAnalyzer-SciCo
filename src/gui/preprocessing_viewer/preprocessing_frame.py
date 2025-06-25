@@ -354,7 +354,7 @@ class PreprocessingFrame(ttk.Frame):
 
             # Call the preprocessing step with range parameters
             duration = stop-start
-            self.step_callback('fit_ica', parameters={'start':start, 'duration':stop})
+            self.step_callback('fit_ica', parameters={'start':start, 'duration':duration})
             # Request plotting of ICA sources after fitting
             self.plot_callback("ica_components", {})
         except Exception as e:
