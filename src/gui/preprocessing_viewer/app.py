@@ -71,7 +71,7 @@ class PreprocessingViewerApp:
         self.preprocessing_frame.grid_propagate(False)  # Prevent resizing based on content
         
         # Create plot frame (right side)
-        self.plot_frame = PreprocessingPlotFrame(main_frame, title="EEG Analysis")
+        self.plot_frame = PreprocessingPlotFrame(main_frame, title="EEG Analysis", preprocessing_frame=self.preprocessing_frame)
         self.plot_frame.grid(row=0, column=1, padx=(0, 5), pady=5, sticky="nsew")
         
         # Status bar at bottom

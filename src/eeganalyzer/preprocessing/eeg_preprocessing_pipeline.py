@@ -292,7 +292,9 @@ class EEGPreprocessor:
             return None
 
     def plot_power_spectral_density(self, picks: Optional[Union[str, List[str]]] = None,
-                                    fmin: float = 0.5, fmax: float = 50.0, title: Optional[str] = None,
+                                    fmin: float = 0.5, fmax: float = 50.0,
+                                    t_min: int = None, t_max: int = None,
+                                    title: Optional[str] = None,
                                     show=False) -> plt.figure:
         """
         Plot power spectral density of the data.
@@ -323,7 +325,9 @@ class EEGPreprocessor:
                 picks=picks,
                 fmin=fmin,
                 fmax=fmax,
-                show=False
+                show=False,
+                tmin=t_min,
+                tmax=t_max
             )
             psd_fig.suptitle(title)
             if show:
