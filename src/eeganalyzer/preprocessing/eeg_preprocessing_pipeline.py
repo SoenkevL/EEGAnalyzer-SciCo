@@ -137,7 +137,10 @@ class EEGPreprocessor:
             None
         """
         annot_path = self.filepath.replace('original.edf', 'annot-sz.mat')
-        update_annotations_suzanne(self.raw, annot_path, self.filepath, method='replace', recompute=False)
+        if os.path.splitext(annot_path)[1] == '.mat':
+            update_annotations_suzanne(self.raw, annot_path, self.filepath, method='replace', recompute=False)
+        else:
+            print('no annotations found, continuing without custom annotation loading')
 
     def categorize_channels_orig(self, mark_unclassified_as_bad = False,
                             patterns=None, merge_with_default=True,

@@ -346,10 +346,12 @@ def update_annotations_suzanne(raw, annot_path, sampleSignalPath, method='add', 
     - raw: changed raw object
     '''
     if recompute or not os.path.exists(annot_path):
-        import matlab.engine
-        eng = matlab.engine.start_matlab()
-        # extract annotations
-        eng.extract_annotations_suzanne(sampleSignalPath, annot_path, nargout=0)
+        # import matlab.engine
+        # eng = matlab.engine.start_matlab()
+        # # extract annotations
+        # eng.extract_annotations_suzanne(sampleSignalPath, annot_path, nargout=0)
+        print(f'could not load file')
+        return raw
     annotations_sz = mat4py.loadmat(annot_path)
     annotations_sz = annotations_sz['annotations']
     # set new annotations
