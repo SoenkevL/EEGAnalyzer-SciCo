@@ -274,7 +274,10 @@ class EEGPreprocessor:
                     block=block,
                     show_options=True,
                     title=title,
-                    bgcolor='white',
+                    theme='light',
+                    color=dict(mag='darkblue', grad='b', eeg='k', eog='navy', ecg='m',
+                                 emg='k', ref_meg='steelblue', misc='k', stim='k',
+                                 resp='k', chpi='k'),
                     **plot_kwargs
                 )
             else:
@@ -286,7 +289,10 @@ class EEGPreprocessor:
                     block=block,
                     show_options=True,
                     title=title,
-                    bgcolor='white',
+                    theme='light',
+                    color = dict(mag='darkblue', grad='b', eeg='k', eog='navy', ecg='m',
+                                 emg='k', ref_meg='steelblue', misc='k', stim='k',
+                                 resp='k', chpi='k')
                 )
             return None
                 
