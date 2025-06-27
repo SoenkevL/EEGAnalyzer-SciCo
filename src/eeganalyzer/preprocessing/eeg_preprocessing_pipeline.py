@@ -11,7 +11,7 @@ Date: 2025-06-03
 
 from eeganalyzer.preprocessing.PreprocessingFunctions import *
 import re
-from mne.preprocessing import ICA, create_ecg_epochs, create_eog_epochs
+from mne.preprocessing import ICA, create_ecg_epochs, create_eog_epochs, find_ecg_events
 from typing import Dict, List, Optional, Union, Any
 import matplotlib.pyplot as plt
 from pprint import pprint
@@ -48,6 +48,7 @@ class EEGPreprocessor:
         log_level : str, default='INFO'
             Logging level for MNE and custom logger
         """
+        self.ecg_evoked = None
         self.eog_evoked = None
         self.filepath = filepath
         self.raw = None
@@ -214,8 +215,10 @@ class EEGPreprocessor:
                 r'.*[Ii][Nn].*',  # Matches anything containing 'In' or 'ln' (case insensitive)
             ]
         }
-        return self.categorize_channels_orig(patterns=CUSTOM_PATTERNS, merge_with_default=True,
+        categories = self.categorize_channels_orig(patterns=CUSTOM_PATTERNS, merge_with_default=True,
                                                 mark_unclassified_as_bad=mark_unclassified_as_bad)
+        return categories
+
 
     def rename_channels(self, mapping: Dict):
         """
@@ -267,6 +270,11 @@ class EEGPreprocessor:
         ## Recategorize the channels
         self.categorize_channels()
         self.report.add_raw(self.raw, title='Fitted a montage to the data')
+
+        ## Finding epochs (probably temporary here)
+        #TODO: move into a more appropriate position
+        self.find_ecg_epochs(show=True)
+        self.find_eog_epochs(show=True)
 
     def set_montage(self, montage):
         try:
@@ -338,21 +346,21 @@ class EEGPreprocessor:
         """
 
         self.logger.info('Finding ECG epochs')
-        channel_info = self.raw.info['chs']
-        if not ecg_channel:
-            ecg_channels = [ch.get('ch_name') for ch in channel_info if ch.get('kind') == 'FIFF_ECG_CH']
-            ecg_channel = ecg_channels[0]
-        if ecg_channel:
-            ecg_evoked = create_ecg_epochs(self.raw, ch_name=ecg_channel).average()
+        try:
+            if ecg_channel:
+                ecg_evoked = create_ecg_epochs(self.raw, ch_name=ecg_channel).average()
+            else:
+                ecg_evoked = create_ecg_epochs(self.raw).average()
             ecg_evoked.apply_baseline(baseline=(None, -0.2))
             fig = ecg_evoked.plot_joint()
-            self.report.add_figure(fig, title='ECG-evoked')
+            self.report.add_figure(fig, title='ECG-epochs')
             self.ecg_evoked = ecg_evoked
             if show:
                 fig.show()
             return fig
-        self.logger.info('No ECG channel found')
-        return None
+        except Exception as e:
+            self.logger.info(f'No ECG channel found: {str(e)}')
+            return None
 
     def find_eog_epochs(self, eog_channel=None, show=False):
         """
@@ -370,21 +378,21 @@ class EEGPreprocessor:
             or None if no EOG channels are found.
         """
         self.logger.info('Finding EOG epochs')
-        channel_info = self.raw.info['chs']
-        if not eog_channel:
-            eog_channels = [ch.get('ch_name') for ch in channel_info if ch.get('kind')=='FIFF_EOG_CH']
-            eog_channel = eog_channels[0]
-        if eog_channel:
-            eog_evoked = create_eog_epochs(self.raw, ch_name=eog_channel).average()
+        try:
+            if eog_channel:
+                eog_evoked = create_eog_epochs(self.raw, ch_name=eog_channel).average()
+            else:
+                eog_evoked = create_eog_epochs(self.raw).average()
             eog_evoked.apply_baseline(baseline=(None, -0.2))
             fig = eog_evoked.plot_joint()
-            self.report.add_figure(fig, title='EOG-evoked')
+            self.report.add_figure(fig, title='EOG-epochs')
             if show:
                 fig.show()
             self.eog_evoked=eog_evoked
             return fig
-        self.logger.info('No EOG channel found')
-        return None
+        except Exception as e:
+            self.logger.info(f'No EOG channel found: {str(e)}')
+            return None
             
     ## ica
     def fit_ica(self, n_components: Optional[Union[int, float]] = None,
@@ -469,6 +477,32 @@ class EEGPreprocessor:
         except Exception as e:
             self.logger.error(f"Error fitting ICA: {str(e)}")
             self.ica = None
+
+    def find_bad_ica_components_eog(self, show=True):
+        try:
+            eog_indices, eog_scores = self.ica.find_bads_eog(self.raw, verbose=True)
+            self.logger.info(f"Found {len(eog_indices)} bad ICA components for EOG at positions {eog_indices}")
+            fig = self.ica.plot_scores(scores=eog_scores, title='EOG scores')
+            self.report.add_figure(fig, title='EOG scores for ica components')
+            if show:
+                fig.show()
+            return fig
+        except Exception as e:
+            self.logger.error(f"Error finding bad ICA components for EOG: {str(e)}")
+            return None
+
+    def find_bad_ica_components_ecg(self, show=True):
+        try:
+            ecg_indices, ecg_scores = self.ica.find_bads_ecg(self.raw, verbose=True)
+            self.logger.info(f"Found {len(ecg_indices)} bad ICA components for ECG at positions {ecg_indices}")
+            fig = self.ica.plot_scores(scores=ecg_scores, title='ECG scores')
+            self.report.add_figure(fig, title='ECG scores for ica components')
+            if show:
+                fig.show()
+            return fig
+        except Exception as e:
+            self.logger.error(f"Error finding bad ICA components for ECG: {str(e)}")
+            return None
 
     def exclude_ica_components(self, components: List[int]) -> None:
         """
@@ -814,7 +848,7 @@ class EEGPreprocessor:
     
     # pipeline functions
     ## ica
-    def run_ica_fitting(self, start, duration):
+    def run_ica_fitting(self, start, duration, find_ecg_sources=True, find_eog_sources=True):
         # Fit ICA
         print("\n9. Fitting ICA...")
         ica_channels = [self.channel_categories.get(category, []) for category in ['EEG', 'EMG', 'ECG', 'EOG']]
@@ -827,6 +861,12 @@ class EEGPreprocessor:
                          'h_freq': 40,
                         }
                      )
+        if find_ecg_sources:
+            self.find_bad_ica_components_ecg()
+        if find_eog_sources:
+            self.find_bad_ica_components_eog()
+
+
 
     def run_ica_selection(self, apply=True):
         # Plot ICA components with multiprocessing
