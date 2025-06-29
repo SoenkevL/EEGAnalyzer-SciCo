@@ -43,6 +43,9 @@ class PreprocessingViewerApp:
         self.preprocessing_pipeline = None
         self.current_file = None
         
+        # Initialize event handlers state
+        self.event_handlers_enabled = False
+        
         # Create the main GUI components
         self.setup_ui()
         
@@ -99,6 +102,27 @@ class PreprocessingViewerApp:
         menubar.add_cascade(label="View", menu=view_menu)
         view_menu.add_command(label="Plot Raw Data", command=self.plot_raw_data_direct)
         view_menu.add_command(label="Plot ICA Sources", command=self.plot_ica_sources_direct)
+        
+        # Settings menu for plot interactions
+        settings_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Settings", menu=settings_menu)
+        settings_menu.add_checkbutton(
+            label="Enable Plot Event Handlers",
+            command=self.toggle_event_handlers,
+            variable=tk.BooleanVar(value=self.event_handlers_enabled)
+        )
+        
+        # Store reference to the settings menu for updating the checkmark
+        self.settings_menu = settings_menu
+        self.event_handlers_var = tk.BooleanVar(value=self.event_handlers_enabled)
+        
+        # Update the menu item with the proper variable
+        settings_menu.delete(0)  # Remove the previous item
+        settings_menu.add_checkbutton(
+            label="Enable Plot Event Handlers",
+            command=self.toggle_event_handlers,
+            variable=self.event_handlers_var
+        )
         
         # Help menu
         help_menu = tk.Menu(menubar, tearoff=0)
@@ -306,6 +330,19 @@ class PreprocessingViewerApp:
             "- Save preprocessed data\n\n"
             "Copyright (C) 2025 Soenke van Loh"
         )
+
+    def toggle_event_handlers(self):
+        """Toggle plot event handlers on/off."""
+        self.event_handlers_enabled = self.event_handlers_var.get()
+        
+        if hasattr(self, 'plot_frame') and self.plot_frame:
+            self.plot_frame.set_event_handlers_enabled(self.event_handlers_enabled)
+            if self.event_handlers_enabled:
+                # Enable event handlers
+                self.status_var.set("Plot event handlers enabled")
+            else:
+                # Disable event handlers
+                self.status_var.set("Plot event handlers disabled")
 
 
 def main():

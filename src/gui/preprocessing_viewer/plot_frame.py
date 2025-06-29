@@ -43,6 +43,7 @@ class PreprocessingPlotFrame(ttk.Frame):
         self.current_plot_type = None
         self.current_parameters = {}
         self.preprocessing_frame = preprocessing_frame
+        self.event_handlers_enabled = False  # Default to enabled
 
         # Create the UI
         self.setup_ui(title)
@@ -172,6 +173,11 @@ class PreprocessingPlotFrame(ttk.Frame):
         
         # Disconnect any existing connections first
         self.disconnect_event_handlers()
+        
+        # Only connect if event handlers are enabled
+        if not getattr(self, 'event_handlers_enabled', True):
+            print("Event handlers are disabled, skipping setup")
+            return
         
         # Connect events to the canvas
         self.event_connections = {}
@@ -657,3 +663,17 @@ class PreprocessingPlotFrame(ttk.Frame):
                 return i, ax
 
         return None, None
+
+    def set_event_handlers_enabled(self, enabled: bool):
+        """
+        Enable or disable event handlers.
+        
+        Args:
+            enabled: True to enable event handlers, False to disable
+        """
+        self.event_handlers_enabled = enabled
+        
+        if enabled:
+            self.setup_event_handlers()
+        else:
+            self.disconnect_event_handlers()
