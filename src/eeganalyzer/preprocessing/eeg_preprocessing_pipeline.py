@@ -352,7 +352,8 @@ class EEGPreprocessor:
             else:
                 ecg_evoked = create_ecg_epochs(self.raw).average()
             ecg_evoked.apply_baseline(baseline=(None, -0.2))
-            fig = ecg_evoked.plot_joint()
+            fig = ecg_evoked.plot_joint(show=False)
+            fig.suptitle('ECG epoch')
             self.report.add_figure(fig, title='ECG-epochs')
             self.ecg_evoked = ecg_evoked
             if show:
@@ -384,7 +385,8 @@ class EEGPreprocessor:
             else:
                 eog_evoked = create_eog_epochs(self.raw).average()
             eog_evoked.apply_baseline(baseline=(None, -0.2))
-            fig = eog_evoked.plot_joint()
+            fig = eog_evoked.plot_joint(show=False)
+            fig.suptitle('EOG epoch')
             self.report.add_figure(fig, title='EOG-epochs')
             if show:
                 fig.show()
@@ -482,7 +484,7 @@ class EEGPreprocessor:
         try:
             eog_indices, eog_scores = self.ica.find_bads_eog(self.raw, verbose=True)
             self.logger.info(f"Found {len(eog_indices)} bad ICA components for EOG at positions {eog_indices}")
-            fig = self.ica.plot_scores(scores=eog_scores, title='EOG scores')
+            fig = self.ica.plot_scores(scores=eog_scores, title='EOG scores', show=False)
             self.report.add_figure(fig, title='EOG scores for ica components')
             if show:
                 fig.show()
@@ -495,7 +497,7 @@ class EEGPreprocessor:
         try:
             ecg_indices, ecg_scores = self.ica.find_bads_ecg(self.raw, verbose=True)
             self.logger.info(f"Found {len(ecg_indices)} bad ICA components for ECG at positions {ecg_indices}")
-            fig = self.ica.plot_scores(scores=ecg_scores, title='ECG scores')
+            fig = self.ica.plot_scores(scores=ecg_scores, title='ECG scores', show=False)
             self.report.add_figure(fig, title='ECG scores for ica components')
             if show:
                 fig.show()
@@ -784,9 +786,9 @@ class EEGPreprocessor:
         
         try:
             if components is not None:
-                fig = self.ica.plot_components(picks=components, show=show, title=title)
+                fig = self.ica.plot_components(picks=components, show=show, title=title, inst=self.raw)
             else:
-                fig = self.ica.plot_components(show=show, title=title)
+                fig = self.ica.plot_components(show=show, title=title, inst=self.raw)
             return fig
                 
         except Exception as e:
@@ -865,8 +867,6 @@ class EEGPreprocessor:
             self.find_bad_ica_components_ecg()
         if find_eog_sources:
             self.find_bad_ica_components_eog()
-
-
 
     def run_ica_selection(self, apply=True):
         # Plot ICA components with multiprocessing
