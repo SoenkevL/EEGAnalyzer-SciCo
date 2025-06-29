@@ -354,7 +354,7 @@ class EEGPreprocessor:
             ecg_evoked.apply_baseline(baseline=(None, -0.2))
             fig = ecg_evoked.plot_joint(show=False)
             fig.suptitle('ECG epoch')
-            self.report.add_figure(fig, title='ECG-epochs')
+            self.report.add_figure(fig, title='ECG-epochs', section='Artifact epochs')
             self.ecg_evoked = ecg_evoked
             if show:
                 fig.show()
@@ -387,7 +387,7 @@ class EEGPreprocessor:
             eog_evoked.apply_baseline(baseline=(None, -0.2))
             fig = eog_evoked.plot_joint(show=False)
             fig.suptitle('EOG epoch')
-            self.report.add_figure(fig, title='EOG-epochs')
+            self.report.add_figure(fig, title='EOG-epochs', section='Artifact epochs')
             if show:
                 fig.show()
             self.eog_evoked=eog_evoked
@@ -485,12 +485,29 @@ class EEGPreprocessor:
             eog_indices, eog_scores = self.ica.find_bads_eog(self.raw, verbose=True)
             self.logger.info(f"Found {len(eog_indices)} bad ICA components for EOG at positions {eog_indices}")
             fig = self.ica.plot_scores(scores=eog_scores, title='EOG scores', show=False)
-            self.report.add_figure(fig, title='EOG scores for ica components')
+            timelocked_component_fig = self.ica.plot_sources(self.eog_evoked, show=False)
+            section='ICA EOG components'
+            self.report.add_figure(fig, title='EOG scores for ica components', section=section)
+            self.report.add_figure(timelocked_component_fig, title='EOG timelocked ICA components', section=section)
+            if show:
+                fig.show()
+                timelocked_component_fig.show()
+            return fig
+        except Exception as e:
+            self.logger.error(f"Error finding bad ICA components for EOG: {str(e)}")
+            return None
+
+    def find_bad_ica_components_emg(self, show=True):
+        try:
+            emg_indices, emg_scores = self.ica.find_bads_muscle(self.raw, verbose=True)
+            self.logger.info(f"Found {len(emg_indices)} bad ICA components for EOG at positions {emg_indices}")
+            fig = self.ica.plot_scores(scores=emg_scores, title='EMG scores', show=False)
+            self.report.add_figure(fig, title='EMG scores for ica components')
             if show:
                 fig.show()
             return fig
         except Exception as e:
-            self.logger.error(f"Error finding bad ICA components for EOG: {str(e)}")
+            self.logger.error(f"Error finding bad ICA components for EMG: {str(e)}")
             return None
 
     def find_bad_ica_components_ecg(self, show=True):
@@ -498,9 +515,13 @@ class EEGPreprocessor:
             ecg_indices, ecg_scores = self.ica.find_bads_ecg(self.raw, verbose=True)
             self.logger.info(f"Found {len(ecg_indices)} bad ICA components for ECG at positions {ecg_indices}")
             fig = self.ica.plot_scores(scores=ecg_scores, title='ECG scores', show=False)
-            self.report.add_figure(fig, title='ECG scores for ica components')
+            timelocked_component_fig = self.ica.plot_sources(self.ecg_evoked, show=False)
+            section='ICA ECG components'
+            self.report.add_figure(fig, title='ECG scores for ica components', section=section)
+            self.report.add_figure(timelocked_component_fig, title='ECG timelocked ICA components', section=section)
             if show:
                 fig.show()
+                timelocked_component_fig.show()
             return fig
         except Exception as e:
             self.logger.error(f"Error finding bad ICA components for ECG: {str(e)}")
@@ -850,7 +871,7 @@ class EEGPreprocessor:
     
     # pipeline functions
     ## ica
-    def run_ica_fitting(self, start, duration, find_ecg_sources=True, find_eog_sources=True):
+    def run_ica_fitting(self, start, duration, find_ecg_sources=True, find_eog_sources=True, find_emg_sources=True):
         # Fit ICA
         print("\n9. Fitting ICA...")
         psd_fig_target_region = self.plot_power_spectral_density(t_max=start+duration, t_min=start, title='Ica fitting region PSD')
@@ -869,6 +890,8 @@ class EEGPreprocessor:
             self.find_bad_ica_components_ecg()
         if find_eog_sources:
             self.find_bad_ica_components_eog()
+        if find_emg_sources:
+            self.find_bad_ica_components_emg()
 
     def run_ica_selection(self, apply=True):
         # Plot ICA components with multiprocessing
