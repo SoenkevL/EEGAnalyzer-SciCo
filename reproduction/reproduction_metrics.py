@@ -23,7 +23,7 @@ Please feel free to use this file as a template for your own metrics.
 """
 
 import edgeofpy as eop
-import neurokit2 as nk
+from custom_metric_functions import *
 
 
 def select_metrics(name):
@@ -52,9 +52,9 @@ def select_metrics(name):
         return metrics_functions, metrics_name_list, kwargs_list
     if name == 'features_pred':  ##########################################################################################
         metrics_name_list = ['LLE', 'MSE', 'LZC', 'KDF']
-        metrics_functions = [nk.complexity_lyapunov, nk.entropy_multiscale, nk.complexity_lempelziv,
+        metrics_functions = [nk.complexity_lyapunov, custom_mse, nk.complexity_lempelziv,
                              nk.fractal_katz]
-        kwargs_list = [{'method': 'rosenstein1993', 'show': False}, None, ]
+        kwargs_list = [{'method': 'rosenstein1993', 'show': False}, None, {'show': False}, None]
         return metrics_functions, metrics_name_list, kwargs_list
     if name == 'other_criticality':  ##########################################################################################
         metrics_name_list = []
