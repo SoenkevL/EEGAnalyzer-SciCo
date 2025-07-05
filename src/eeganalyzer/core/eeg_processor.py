@@ -78,18 +78,23 @@ class EEG_processor:
         else:
             print(f"Resampling frequency {resamp_freq} must be lower than the current sampling frequency {self.sfreq}.")
 
-    def apply_filter(self, l_freq: float = None, h_freq: float = None, picks: str = 'eeg'):
+    def apply_filter(self, l_freq: float = None, h_freq: float = None, prohibit_double_filtering = True, picks: str = 'eeg'):
         """
         Filters a raw instance and returns it afterwards.
         """
-        if l_freq and l_freq != 'None' and h_freq and h_freq != 'None':
+        current_h_freq = self.raw.info['lowpass']
+        current_l_freq = self.raw.inof['highpass']
+        new_l_freq = l_freq if (l_freq and l_freq != 'None') else None
+        new_h_freq = h_freq if (h_freq and h_freq != 'None') else None
+        if prohibit_double_filtering:
+            if new_l_freq == current_l_freq:
+                new_l_freq = None
+            if new_h_freq == current_h_freq:
+                new_h_freq = None
+        if new_l_freq or new_h_freq:
             self.raw.filter(l_freq=l_freq, h_freq=h_freq, picks=picks)
-        elif l_freq and l_freq != 'None':
-            self.raw.filter(l_freq=l_freq, h_freq=self.raw.info['sfreq'], picks=picks)
-        elif h_freq and h_freq != 'None':
-            self.raw.filter(l_freq=0, h_freq=h_freq, picks=picks)
         else:
-            print("No filtering performed as both l_freq and h_freq are not specified.")
+            print("No filtering performed as both l_freq and h_freq are not specified or already applied.")
 
     def ensure_electrodes_present(self, anodes, cathods, new_names):
         """

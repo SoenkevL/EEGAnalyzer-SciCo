@@ -1,0 +1,120 @@
+# config file for running experiments
+# two levels are used for defining the parameters. Experiments and runs. Each config can have multiple experiments
+# which in turn can have multiple runs
+experiments:
+  -
+    # name of the experiment for logging
+    name: edge_of_chaos_metrics_full_freq
+    # further information on the dataset (can be left empty)
+    description: calculating metrics related to the edge of chaos criticality
+    # sql database that stores information, can be shared for multiple datasets
+    sqlite_path: metrics_a.sqlite
+    # root bids folder, should end in BIDS but not necessary, the folder (and subfolders) will be scanned for fif files
+    bids_folder: EIRatio_BIDS
+    # input file type, the type of files that should be treated as valid input files
+    input_file_ending: 'preprocessed-raw.fif'
+    # Metrics are specified in a metrics.py file
+    # Path where the metrics.py file can be found
+    metric_path: reproduction_metrics.py
+    # The name of the metric_set which should be used for computation
+    metric_set_name: edge_of_chaos_metrics.csv
+    # annotations for which metrics should be calculated. Need to be given as a list with the '-' infront of the option
+    # - Leaving it empty calcs metrics for the whole file
+    # - giving the keyword 'all' calculates it for all annotations in the file (nothing computed if there ar eno annotations)
+    annotations_of_interest:
+      - 'AWAKE-EC'
+      - 'ANES'
+    #if the signal of interest should be epoched, for using the whole file/annotation leave all empty
+    epoching:
+      #offset in seconds from beginning of file/annotation, leaving it empty fills 0
+      start_time: 0
+      #length of the epochs, if left empty the whole file/annotation length will be used
+      duration: 10
+      #overlap is used in a sliding window approach to make steps, has to be
+      #strictly less than duration or will be set to 0 within computation
+      overlap: 0
+      #epochs are done from start to stop with only full intervals beeing calculated, no stop time means end of file/annotation
+      stop_time:
+    # the name of the output file, has to end with metrics.csv for using the processing notebooks
+    outfile_ending:
+    # if files which allready exist should be recomputed
+    recompute: False
+    # definition of the different runs for this experiment where montage and filtering can be adapted
+    runs:
+      -
+        # name of the run for debugging
+        name: edge_of_chaos_run_1
+        # filter settings to apply to eeg, can be left empty
+        # not specifying a l_freq or h_freq means no filtering will be applied for the lower or upper bound
+        # filters are defined to filter inbetween l_freq and h_freq, some examples:
+        # - l_freq=1 and h_freq=4 is a bandpass filter between 1 and 4 Hz
+        # - l_freq=1, h_freq=None is a highpass filter of 1 Hz
+        # - l_freq=4, and h_freq=1 is a bandstop filter 1-4 Hz
+        filter:
+          h_freq: 40
+          l_freq: 1
+        # sampling freq of the signal to resample to, can be left empty
+        sfreq: 1450
+        # montage that should be used, out of 'avg', 'circumferential', 'doublebanana'
+        montage: 'avg'
+        # folder structure, final results are saved at <root_bids_folder>/metrics<metrics_prefix>/<outfile_ending>
+        # should be of form '/<folder1>/<folder2>' can be done with N folders
+        metrics_prefix:
+  -
+    # name of the experiment for logging
+    name: edge_of_chaos_metrics_0-1-chaos
+    # further information on the dataset (can be left empty)
+    description: calculating the 0-1 chaos test
+    # sql database that stores information, can be shared for multiple datasets
+    sqlite_path: metrics_a.sqlite
+    # root bids folder, should end in BIDS but not necessary, the folder (and subfolders) will be scanned for fif files
+    bids_folder: EIRatio_BIDS
+    # input file type, the type of files that should be treated as valid input files
+    input_file_ending: 'preprocessed-raw.fif'
+    # Metrics are specified in a metrics.py file
+    # Path where the metrics.py file can be found
+    metric_path: reproduction_metrics.py
+    # The name of the metric_set which should be used for computation
+    metric_set_name: edge_of_chaos_metrics.csv
+    # annotations for which metrics should be calculated. Need to be given as a list with the '-' infront of the option
+    # - Leaving it empty calcs metrics for the whole file
+    # - giving the keyword 'all' calculates it for all annotations in the file (nothing computed if there ar eno annotations)
+    annotations_of_interest:
+      - 'AWAKE-EC'
+      - 'ANES'
+    #if the signal of interest should be epoched, for using the whole file/annotation leave all empty
+    epoching:
+      #offset in seconds from beginning of file/annotation, leaving it empty fills 0
+      start_time: 0
+      #length of the epochs, if left empty the whole file/annotation length will be used
+      duration: 10
+      #overlap is used in a sliding window approach to make steps, has to be
+      #strictly less than duration or will be set to 0 within computation
+      overlap: 0
+      #epochs are done from start to stop with only full intervals beeing calculated, no stop time means end of file/annotation
+      stop_time:
+    # the name of the output file, has to end with metrics.csv for using the processing notebooks
+    outfile_ending:
+    # if files which allready exist should be recomputed
+    recompute: False
+    # definition of the different runs for this experiment where montage and filtering can be adapted
+    runs:
+      -
+        # name of the run for debugging
+        name: 0-1 chaos 4 Hz
+        # filter settings to apply to eeg, can be left empty
+        # not specifying a l_freq or h_freq means no filtering will be applied for the lower or upper bound
+        # filters are defined to filter inbetween l_freq and h_freq, some examples:
+        # - l_freq=1 and h_freq=4 is a bandpass filter between 1 and 4 Hz
+        # - l_freq=1, h_freq=None is a highpass filter of 1 Hz
+        # - l_freq=4, and h_freq=1 is a bandstop filter 1-4 Hz
+        filter:
+          h_freq: 4
+          l_freq: 1
+        # sampling freq of the signal to resample to, can be left empty
+        sfreq: 1450
+        # montage that should be used, out of 'avg', 'circumferential', 'doublebanana'
+        montage: 'avg'
+        # folder structure, final results are saved at <root_bids_folder>/metrics<metrics_prefix>/<outfile_ending>
+        # should be of form '/<folder1>/<folder2>' can be done with N folders
+        metrics_prefix: /0_1_chaos/4Hz
