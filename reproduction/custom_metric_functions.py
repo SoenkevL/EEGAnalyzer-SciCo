@@ -6,6 +6,7 @@ import neurokit2 as nk
 import numpy as np
 import edgeofpy as eop
 import pandas as pd
+from scipy.signal import hilbert
 
 # Features Pred
 def custom_mse(channel_data):
@@ -146,3 +147,22 @@ def custom_avalanche_functions(data):
         out[name].append(locals()[name])
 
     output_df = pd.DataFrame(out)
+
+def get_channel_hurst(ch_data,sfreq=1450):
+
+    scale = nk.expspace(1*sfreq, 20*sfreq, 40, base=2).astype(np.int64)
+
+    analytic_signal = hilbert(ch_data)
+    amplitude_envelope = np.abs(analytic_signal)
+
+    try:
+        hurst_fh, _ = nk.fractal_hurst(amplitude_envelope, scale=scale, show=False)
+    except:
+        hurst_fh = float('nan')
+
+    try:
+        hurst_dfa, _ = nk.fractal_dfa(amplitude_envelope, scale=scale, show=False)
+    except:
+        hurst_dfa = float('nan')
+
+    return  hurst_fh, hurst_dfa

@@ -56,11 +56,6 @@ def select_metrics(name):
                              nk.fractal_katz]
         kwargs_list = [{'method': 'rosenstein1993', 'show': False}, None, {'show': False}, None]
         return metrics_functions, metrics_name_list, kwargs_list
-    if name == 'other_criticality':  ##########################################################################################
-        metrics_name_list = []
-        metrics_functions = []
-        kwargs_list = []
-        return metrics_functions, metrics_name_list, kwargs_list
 
 
 

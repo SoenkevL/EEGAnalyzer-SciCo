@@ -2,5 +2,6 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
+    <mapping directory="$USER_HOME$/PycharmProjects/Criticality_PCI_Anesthesia" vcs="Git" />
   </component>
 </project>
