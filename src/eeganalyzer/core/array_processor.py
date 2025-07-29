@@ -21,9 +21,7 @@ import pandas as pd
 from typing import List, Dict, Tuple, Optional, Any, Union
 import os, sys
 
-from eeganalyzer.utils.buttler import Buttler
-
-
+from eeganalyzer.utils.buttler import map_chaos_pipe_result_to_float
 class Array_processor:
     """
     This class provides a framework for processing array data, particularly for time-series analysis such as EEG data.
@@ -34,43 +32,24 @@ class Array_processor:
         metric_name (str): The name of the metric or set of metrics to calculate.
         sfreq (float): The sampling frequency of the input data.
         axis_of_time (int): Axis indicating time (0 for rows, 1 for columns).
-        buttler (Buttler): An object from the Buttler class to support auxiliary computations.
-
-    Methods:
-        set_sfreq(sfreq): Sets the sampling frequency.
-        set_data(data): Updates the data attribute.
-        set_axis_of_time(axis_of_time): Sets the axis representing time in the data.
-        set_metric_name(metric_name): Sets the name of the metric to calculate.
-        transpose_data(): Swaps rows and columns based on the axis of time.
-        initialize_metric_functions(name): Loads metric functions, names, and arguments.
-        apply_metric_func(data, metric_func, kwargs): Applies a metric function to a time-series.
-        create_result_array(eeg_np_array, metrics_func_list, kwargs_list): Computes metrics for a given EEG data array.
-        process_result_array(result_array, metric_name_array): Processes metric results for further use.
-        create_result_dict_from_eeg_frame(data_frame, metrics_func_list, metrics_name_list, kwargs_list, channelwise=True):
-            Computes metrics for EEG data and organizes results by channel or overall data.
-        create_dataframe_from_result_dict(result_dict, metric_name_array, start_data_record, duration, label):
-            Creates a DataFrame of computed metrics from a dictionary of results.
-        calc_metrics_from_eeg_dataframe_and_annotations(dataframe, annot_label, annot_startDataRecord, annot_duration):
-            Computes metrics for a designated EEG segment given its annotation details.
-        epoching(duration, start_time=0, stop_time=None, overlap=0, task=None): 
-            Divides data into epochs and calculates metrics for each, returning results in a DataFrame.
     """
 
     def __init__(self, data: Optional[pd.DataFrame] = None, metric_name: Optional[str] = None, metric_path: Optional[str] = None,
-                 sfreq: Optional[float] = None, axis_of_time: int = 0):
+                 sfreq: Optional[float] = None, axis_of_time: int = 0, first_element_time=False):
             self.data: Optional[pd.DataFrame] = None
             self.metric_name: Optional[str] = None
             self.metric_path: Optional[str] = None
             self.sfreq: Optional[float] = None
             self.axis_of_time: int = 0
-            self.buttler: Buttler = Buttler()
-            
-            self.set_data(data)
+            self.first_element_time = first_element_time
+            self.time = None
+
             self.set_metric_name(metric_name)
             self.set_metric_path(metric_path)
             self.select_metrics = self.import_metrics()
             self.set_sfreq(sfreq)
             self.set_axis_of_time(axis_of_time)
+            self.set_data(data)
 
     def import_metrics(self):
         """
@@ -118,7 +97,6 @@ class Array_processor:
         except Exception as e:
             raise ImportError(f"Failed to import metrics from {self.metric_path}: {str(e)}")
 
-
     def set_sfreq(self, sfreq: float) -> None:
         """
         Sets the sampling frequency (sfreq) attribute.
@@ -142,6 +120,16 @@ class Array_processor:
         """
         if not isinstance(data, pd.DataFrame):
             raise ValueError("Data must be a pandas DataFrame.")
+        if not isinstance(self.first_element_time, bool):
+            raise ValueError("First element time must be a boolean.")
+        if self.first_element_time:
+            if self.axis_of_time == 0:
+                data = data.iloc[:, 1:]
+                self.time = data.iloc[:, 0]
+
+            else:
+                data = data.iloc[1:, :]
+                self.time = data.iloc[0, :]
         self.data = data
 
     def set_axis_of_time(self, axis_of_time: int) -> None:
@@ -340,7 +328,7 @@ class Array_processor:
                 elif result_type == dict:
                     for key, value in result.items():
                         if key == 'result':
-                            value = self.buttler.map_chaos_pipe_result_to_float(value)
+                            value = map_chaos_pipe_result_to_float(value)
                         processed_array.append(value)
                 else:
                     processed_array.append(result)  # Handle other result types directly

@@ -20,7 +20,7 @@ import argparse
 import sys
 from typing import Dict, Any, Union
 
-from eeganalyzer.core.processor import process_experiment
+from eeganalyzer.core.processor import Processor
 from eeganalyzer.utils.config import load_yaml_file, check_file_exists_and_create_path
 
 
@@ -51,7 +51,8 @@ def main() -> int:
     config: Dict[str, Any] = load_yaml_file(yaml_file)
 
     # Process the experiments as defined in the configuration
-    process_experiment(config, log_file)
+    processor = Processor(config, log_file)
+    processor.process_experiment()
     
     return 0
 

@@ -20,7 +20,7 @@ import pandas as pd
 from scipy.signal import butter, filtfilt, resample_poly
 
 from eeganalyzer.core.array_processor import Array_processor
-from eeganalyzer.utils.buttler import Buttler
+# from eeganalyzer.utils.buttler import Buttler
 
 
 class CSVProcessor:
