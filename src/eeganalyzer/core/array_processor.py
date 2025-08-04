@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 from typing import List, Dict, Tuple, Optional, Any, Union
 import os, sys
+import logging
 
 from eeganalyzer.utils.buttler import map_chaos_pipe_result_to_float
 class Array_processor:
@@ -36,6 +37,7 @@ class Array_processor:
 
     def __init__(self, data: Optional[pd.DataFrame] = None, metric_name: Optional[str] = None, metric_path: Optional[str] = None,
                  sfreq: Optional[float] = None, axis_of_time: int = 0, first_element_time=False):
+            self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
             self.data: Optional[pd.DataFrame] = None
             self.metric_name: Optional[str] = None
             self.metric_path: Optional[str] = None
@@ -50,6 +52,7 @@ class Array_processor:
             self.set_sfreq(sfreq)
             self.set_axis_of_time(axis_of_time)
             self.set_data(data)
+            pass
 
     def import_metrics(self):
         """
@@ -62,6 +65,7 @@ class Array_processor:
             ImportError: If the function cannot be imported from the specified path.
         """
         if not self.metric_path:
+            logging.error("Metric path is not set. Use set_metric_path() first.")
             raise ValueError("Metric path is not set. Use set_metric_path() first.")
 
         try:
@@ -83,6 +87,7 @@ class Array_processor:
             import importlib.util
             spec = importlib.util.spec_from_file_location(module_name, self.metric_path)
             if not spec:
+                logging.error(f"Could not load spec for module at {self.metric_path}")
                 raise ImportError(f"Could not load spec for module at {self.metric_path}")
 
             metrics_module = importlib.util.module_from_spec(spec)
@@ -90,11 +95,14 @@ class Array_processor:
 
             # Get the select_metrics function
             if not hasattr(metrics_module, 'select_metrics'):
+                logging.error(f"The metrics module at {self.metric_path} does not contain a select_metrics function")
                 raise AttributeError(f"The metrics module at {self.metric_path} does not contain a select_metrics function")
 
+            logging.debug(f"Successfully imported metrics from {self.metric_path}")
             return metrics_module.select_metrics
 
         except Exception as e:
+            logging.error(f"Failed to import metrics from {self.metric_path}: {str(e)}")
             raise ImportError(f"Failed to import metrics from {self.metric_path}: {str(e)}")
 
     def set_sfreq(self, sfreq: float) -> None:
@@ -108,7 +116,9 @@ class Array_processor:
             ValueError: If sfreq is not a positive number.
         """
         if sfreq <= 0:
+            logging.error("Sampling frequency must be a positive number.")
             raise ValueError("Sampling frequency must be a positive number.")
+        logging.debug(f"Setting sfreq to {sfreq}")
         self.sfreq = sfreq
 
     def set_data(self, data: pd.DataFrame):
@@ -119,8 +129,10 @@ class Array_processor:
             data (pd.DataFrame): EEG data to process.
         """
         if not isinstance(data, pd.DataFrame):
+            logging.error("Data must be a pandas DataFrame.")
             raise ValueError("Data must be a pandas DataFrame.")
         if not isinstance(self.first_element_time, bool):
+            logging.error("First element time must be a boolean.")
             raise ValueError("First element time must be a boolean.")
         if self.first_element_time:
             if self.axis_of_time == 0:
@@ -130,6 +142,7 @@ class Array_processor:
             else:
                 data = data.iloc[1:, :]
                 self.time = data.iloc[0, :]
+        logging.debug(f"Setting data, first two rows:\n{data.head(2)}")
         self.data = data
 
     def set_axis_of_time(self, axis_of_time: int) -> None:
@@ -140,7 +153,9 @@ class Array_processor:
             axis_of_time: Axis or dimension referring to time in the data.
         """
         if axis_of_time not in [1, 0]:
+            logging.error("Axis of time must be either 1 (columns) or 0 (rows).")
             raise ValueError("Axis of time must be either 1 (columns) or 0 (rows).")
+        logging.debug(f"Setting axis_of_time to {axis_of_time}")
         self.axis_of_time = axis_of_time
 
     def set_metric_name(self, metric_name: str) -> None:
@@ -151,7 +166,9 @@ class Array_processor:
             metric_name (str): Name of the metric.
         """
         if not isinstance(metric_name, str) or not metric_name.strip():
+            logging.error("Metric name must be a non-empty string.")
             raise ValueError("Metric name must be a non-empty string.")
+        logging.debug(f"Setting metric_name to {metric_name}")
         self.metric_name = metric_name
 
     def set_metric_path(self, metric_path: str) -> None:
@@ -162,9 +179,12 @@ class Array_processor:
             metric_path (str): Name of the metric.
         """
         if not isinstance(metric_path, str) or not metric_path.strip():
+            logging.error("Metric path must be a non-empty string.")
             raise ValueError("Metric path must be a non-empty string.")
         if not os.path.exists(metric_path):
+            logging.error("Metric path does not exist.")
             raise ValueError("Metric path does not exist.")
+        logging.debug(f"Setting metric_path to {metric_path}")
         self.metric_path = metric_path
          
     def transpose_data(self) -> None:
@@ -172,6 +192,7 @@ class Array_processor:
         Transposes the data based on the axis of time and updates the axis_of_time attribute.
         """
         if self.axis_of_time not in [0, 1]:
+            logging.error("Axis of time must be either 0 (rows) or 1 (columns).")
             raise ValueError("Axis of time must be either 0 (rows) or 1 (columns).")
 
         if self.axis_of_time == 1:
@@ -180,6 +201,7 @@ class Array_processor:
         elif self.axis_of_time == 0:
             self.data = self.data.T
             self.axis_of_time = 1
+        logging.debug(f"Transposed data, first two rows:\n{self.data.head(2)}")
 
     def initialize_metric_functions(self, name: str) -> Tuple[List[callable], List[str], List[Dict[str, Any]]]:
         """
@@ -199,6 +221,7 @@ class Array_processor:
             TypeError: If the output of Metrics.select_metrics is not a tuple of lists.
         """
         if not isinstance(name, str) or not name.strip():
+            logging.error("Metric set name must be a non-empty string.")
             raise ValueError("Metric set name must be a non-empty string.")
 
         try:
@@ -206,17 +229,21 @@ class Array_processor:
 
             if not isinstance(metrics_functions, list) or not isinstance(metrics_name_list, list) or not isinstance(
                     kwargs_list, list):
+                logging.error("Output of Metrics.select_metrics must be three lists.")
                 raise TypeError("Output of Metrics.select_metrics must be three lists.")
 
             if not metrics_functions or not metrics_name_list or not kwargs_list:
+                logging.error("No metrics found for the name: %s", name)
                 raise ValueError(f"No metrics found for the name: {name}")
 
         except Exception as e:
+            logging.error("Error occurred while retrieving metrics for '%s': %s", name, str(e))
             raise ValueError(f"An error occurred while retrieving metrics for '{name}': {e}")
 
         return metrics_functions, metrics_name_list, kwargs_list
 
-    def apply_metric_func(self, data: Union[np.ndarray, List[float]], 
+    @staticmethod
+    def apply_metric_func(data: Union[np.ndarray, List[float]],
                          metric_func: callable, 
                          kwargs: Optional[Dict[str, Any]]) -> Any:
         '''
@@ -235,15 +262,20 @@ class Array_processor:
         - TypeError if metric_func is not callable.
         '''
         # Ensure data is one-dimensional
+        logging.debug(f"Applying metric '{metric_func.__name__}' to data.")
         if not isinstance(data, (np.ndarray, list)) or len(np.shape(data)) != 1:
+            #TODO: remove this constraint and make it selectable
+            logging.error("Data must be a one-dimensional time series.")
             raise ValueError("Data must be a one-dimensional time series.")
 
         # Ensure metric_func is callable
         if not callable(metric_func):
+            logging.error("metric_func must be a callable function.")
             raise TypeError("metric_func must be a callable function.")
 
         # Ensure kwargs is either None or a dictionary
         if kwargs is not None and not isinstance(kwargs, dict):
+            logging.error("kwargs must be a dictionary or None.")
             raise TypeError("kwargs must be a dictionary or None.")
 
         # Ensures EEG channel is saved as contiguous array in memory
@@ -256,11 +288,11 @@ class Array_processor:
                 return metric_func(data, **kwargs)
             except TypeError as e:
                 # If kwargs are not accepted, use kwarg values as an arg list instead
-                print(f"TypeError occurred: {e}. Retrying with positional arguments.")
+                logging.warning(f"TypeError occurred: {e}. Retrying with positional arguments.")
                 return metric_func(data, *list(kwargs.values()))
             except Exception as e:
                 # Catch any unexpected exceptions and handle gracefully
-                print(f"Could not apply metric '{metric_func.__name__}' to data. Exception: {e}")
+                logging.error(f"Could not apply metric '{metric_func.__name__}' to data. Exception: {e}")
                 return None
         else:
             # If no kwargs are provided, calculate with default parameters
@@ -268,8 +300,8 @@ class Array_processor:
                 return metric_func(data)
             except Exception as e:
                 # Catch and log exceptions during default metric calculation
-                print(
-                    f"Could not apply metric '{metric_func.__name__}' to data with default parameters. Exception: {e}")
+                logging.error(f"Could not apply metric '{metric_func.__name__}'"
+                              f" to data with default parameters. Exception: {e}")
                 return None
 
     def create_result_array(self, eeg_np_array, metrics_func_list: list, kwargs_list: list[dict]) -> list:
@@ -287,6 +319,7 @@ class Array_processor:
         Raises:
         - ValueError: If the input arguments are not structured as expected or contain invalid values.
         '''
+        logging.debug(f"Creating result array for EEG data with shape {eeg_np_array.shape}.")
         return [self.apply_metric_func(eeg_np_array, metric_func, kwargs)
                 for metric_func, kwargs in zip(metrics_func_list, kwargs_list)]
 
@@ -309,10 +342,13 @@ class Array_processor:
         - ValueError: If metric_name_array and result_array lengths do not match.
         '''
         if not isinstance(result_array, list):
+            logging.error("result_array must be a list.")
             raise TypeError("result_array must be a list.")
         if not isinstance(metric_name_array, list):
+            logging.error("metric_name_array must be a list.")
             raise TypeError("metric_name_array must be a list.")
         if len(result_array) != len(metric_name_array):
+            logging.error("result_array and metric_name_array must have the same length.")
             raise ValueError("result_array and metric_name_array must have the same length.")
 
         # Initialize processed array
@@ -333,7 +369,7 @@ class Array_processor:
                 else:
                     processed_array.append(result)  # Handle other result types directly
             except Exception as e:
-                print(f"Error processing result: {result}. Exception: {e}")
+                logging.error(f"Error processing result: {result}. Exception: {e}")
                 processed_array.append(None)
 
         # Create tuples with names
@@ -341,6 +377,7 @@ class Array_processor:
             for i, (name, value) in enumerate(zip(metric_name_array, processed_array)):
                 processed_array[i] = (name, value)
         except Exception as e:
+            logging.error("Error occurred while pairing metric names with results.")
             raise RuntimeError("Error occurred while pairing metric names with results.") from e
 
         return processed_array
@@ -372,10 +409,13 @@ class Array_processor:
         '''
         if not isinstance(metrics_func_list, list) or not isinstance(metrics_name_list, list) or not isinstance(kwargs_list,
                                                                                                                 list):
+            logging.error("metrics_func_list, metrics_name_list, and kwargs_list must all be lists.")
             raise ValueError("metrics_func_list, metrics_name_list, and kwargs_list must all be lists.")
         if len(metrics_func_list) != len(metrics_name_list) or len(metrics_func_list) != len(kwargs_list):
+            logging.error("metrics_func_list, metrics_name_list, and kwargs_list must have the same length.")
             raise ValueError("metrics_func_list, metrics_name_list, and kwargs_list must have the same length.")
         if not isinstance(data_frame, (pd.DataFrame, np.ndarray)):
+            logging.error("data_frame must be a pandas DataFrame or a numpy array.")
             raise TypeError("data_frame must be a pandas DataFrame or a numpy array.")
 
         result_dict = {}
@@ -391,7 +431,7 @@ class Array_processor:
                         processed_result_array = self.process_result_array(raw_result_array, metrics_name_list)
                         result_dict[colname] = processed_result_array
                     except Exception as e:
-                        print(f"Error processing column {colname}: {e}")
+                        logging.error(f"Error processing column {colname}: {e}")
                         result_dict[colname] = None
             else:
                 for row in range(data_frame.shape[0]):
@@ -401,7 +441,7 @@ class Array_processor:
                         processed_result_array = self.process_result_array(raw_result_array, metrics_name_list)
                         result_dict[row] = processed_result_array
                     except Exception as e:
-                        print(f"Error processing row {row}: {e}")
+                        logging.error(f"Error processing row {row}: {e}")
                         result_dict[row] = None
         else:
             try:
@@ -409,9 +449,10 @@ class Array_processor:
                 processed_result_array = self.process_result_array(raw_result_array, metrics_name_list)
                 result_dict = {column: processed_result_array for column in range(self.data.shape[1])}
             except Exception as e:
-                print(f"Error processing entire data frame: {e}")
+                logging.error(f"Error processing entire data frame: {e}")
                 result_dict = {}
 
+        logging.debug(f"Result dictionary created: {result_dict} for metrics {metrics_name_list}.")
         return result_dict, metrics_name_list
 
     def create_dataframe_from_result_dict(self, result_dict: Dict[Union[str, int], List[Tuple[str, Any]]], 
@@ -439,16 +480,20 @@ class Array_processor:
             TypeError: If input arguments are not of expected types.
         '''
         if not isinstance(result_dict, dict):
+            logging.error("result_dict must be a dictionary.")
             raise TypeError("result_dict must be a dictionary.")
         if not isinstance(metric_name_array, list) or not all(isinstance(item, str) for item in metric_name_array):
+            logging.error("metric_name_array must be a list of strings.")
             raise TypeError("metric_name_array must be a list of strings.")
         if not isinstance(start_data_record, (int, float)) or start_data_record < 0:
+            logging.error("start_data_record must be a non-negative number.")
             raise ValueError("start_data_record must be a non-negative number.")
         if not isinstance(duration, (int, float)) or duration <= 0:
+            logging.error("duration must be a positive number.")
             raise ValueError("duration must be a positive number.")
         if not isinstance(label, (str, int, float)):
             label = '<missing>'
-            print('no label was provided, using <missing> instead.')
+            logging.warning('no label was provided, using <missing> instead.')
         # Create multi-index based on metric, label, startDataRecord, and duration
         index = pd.MultiIndex.from_product([[label], [start_data_record], [duration], metric_name_array],
                                            names=['label', 'startDataRecord', 'duration', 'metric'])
@@ -460,11 +505,14 @@ class Array_processor:
                                          dtype=float)
 
         # Populate the DataFrame with metric results
+        logging.debug(f"Populating DataFrame with results for metrics {metric_name_array}.")
         for column, result_array in result_dict.items():
             if not isinstance(result_array, list):
+                logging.error(f"Values in result_dict must be lists, but got {type(result_array)} for column '{column}'.")
                 raise TypeError(f"Values in result_dict must be lists, but got {type(result_array)} for column '{column}'.")
             for result_tuple in result_array:
                 if not isinstance(result_tuple, tuple) or len(result_tuple) != 2:
+                    logging.error("Each element in result_array must be a tuple of (metric_name, result).")
                     raise ValueError("Each element in result_array must be a tuple of (metric_name, result).")
                 metric_name, result = result_tuple
                 if metric_name in metric_name_array:
@@ -495,10 +543,11 @@ class Array_processor:
         '''
         # Validate inputs
         if not isinstance(dataframe, pd.DataFrame):
+            logging.error("dataframe must be a pandas DataFrame.")
             raise TypeError("dataframe must be a pandas DataFrame.")
         if not isinstance(annot_label, (str, int, float)):
+            logging.warning("annot_label must be a string, integer, or float.")
             annot_label = '<missing>'
-            print('no label was provided, using <missing> instead.')
 
 
         try:
@@ -515,8 +564,10 @@ class Array_processor:
                 result_dict, metrics_name_list, annot_startDataRecord, annot_duration, annot_label
             )
         except Exception as e:
+            logging.error("Error occurred during calculating metrics for EEG dataframe.")
             raise RuntimeError("Error occurred during calculating metrics for EEG dataframe.") from e
 
+        logging.debug(f"Sub-results dataframe created for EEG segment with label {annot_label}.")
         return sub_results_frame
 
     def epoching(self, duration: int, start_time: int = 0, stop_time: Optional[int] = None,
@@ -540,7 +591,7 @@ class Array_processor:
         # Validate duration
         if not duration or duration <= 0:
             duration = total_duration
-            print("Duration must be a positive integer. Set to total duration.")
+            logging.warning("Duration must be a positive integer. Set to total duration.")
 
         # Validate and set stop_time
         if stop_time is None:
@@ -551,17 +602,17 @@ class Array_processor:
         # Validate start_time
         if not start_time or start_time < 0 or start_time >= stop_time:
             start_time = 0
-            print("Start time must be non-negative and less than stop time. set to 0")
+            logging.warning("Start time must be non-negative and less than stop time. set to 0")
 
         # Validate and adjust overlap
         if not overlap or overlap < 0 or overlap >= duration:
-            print("Overlap not set or >= duration. Resetting overlap to 0.")
+            logging.warning("Overlap not set or >= duration. Resetting overlap to 0.")
             overlap = 0
 
         # Check if duration fits within the interval [start_time, stop_time)
         if (stop_time - start_time) < duration:
             duration = stop_time - start_time
-            print("The interval between start_time and stop_time is less than the duration. Setting duration to full interval.")
+            logging.warning("The interval between start_time and stop_time is less than the duration. Setting duration to full interval.")
 
         # Initialize results container
         results = []
@@ -576,7 +627,7 @@ class Array_processor:
             eeg_dataframe = self.data.iloc[t_onset_samples:t_stop_samples, :]
 
             # Calculate metrics for the current epoch
-            print(f'Calculating for times: {t_onset} to {t_onset + duration} seconds')
+            logging.info(f"Calculating metrics for epoch {t_onset} to {t_onset + duration} seconds.")
             sub_results_frame = self.calc_metrics_from_eeg_dataframe_and_annotations(
                 eeg_dataframe, task, t_onset, duration
             )

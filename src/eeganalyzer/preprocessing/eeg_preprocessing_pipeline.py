@@ -26,7 +26,7 @@ import mne
 mne.set_config('MNE_BROWSER_BACKEND', 'qt')
 mne.set_log_level(verbose='WARNING')
 
-
+#TODO: change the logging to follow the norm from the metric processing files
 class EEGPreprocessor:
     """
     Comprehensive EEG preprocessing pipeline for neurophysiological data analysis.

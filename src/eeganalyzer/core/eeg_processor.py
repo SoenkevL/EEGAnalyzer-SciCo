@@ -19,6 +19,7 @@ This module provides the EEG_processor class for processing EEG data.
 import mne
 import pandas as pd
 from icecream import ic
+import logging
 
 from eeganalyzer.core.array_processor import Array_processor
 from eeganalyzer.utils.buttler import check_outfile_name, find_task_from_filename
@@ -34,10 +35,12 @@ class EEG_processor:
     """
 
     def __init__(self, datapath, config, preload: bool = True):
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.datapath = datapath
         self.config = config
         self.raw, self.sfreq = self.load_data_file(datapath, preload)
         self.info = self.raw.info
+        logging.debug(f'initialized EEGAnalyzer for datapath: {datapath}')
 
     #### Loading data ####
     def load_data_file(self, data_file: str, preload: bool = True):
@@ -46,24 +49,26 @@ class EEG_processor:
         """
         valid_extensions = ['.fif', '.edf']
         if not any(data_file.endswith(ext) for ext in valid_extensions):
-            print(f"Unsupported file type: {data_file}. Supported file types are: {', '.join(valid_extensions)}.")
+            logging.warning(f"Unsupported file type: {data_file}. Supported file types are: {', '.join(valid_extensions)}.")
             return None, None
         try:
             raw = mne.io.read_raw(data_file, preload=preload)
             sfreq = raw.info['sfreq']
+            logging.debug(f"Loaded file: {data_file}")
             return raw, sfreq
         except FileNotFoundError:
-            print(f"File not found: {data_file}. Please check the filepath.")
-        except ValueError as ve:
-            print(f"Invalid file format: {data_file}. Unable to load data. Error: {ve}")
-        except Exception as e:
-            print(f"An unexpected error occurred while loading the file: {data_file}. Error: {e}")
+            logging.error(f"File not found: {data_file}. Please check the filepath.")
+        except ValueError:
+            logging.error(f"Invalid file format: {data_file}. Unable to load data")
+        except Exception:
+            logging.error(f"An unexpected error occurred while loading the file: {data_file}")
         return None, None
 
     def load_data_of_raw_object(self):
         """
         Loads data from the raw EEG object into memory.
         """
+        logging.debug("Loading data from the raw EEG object")
         self.raw.load_data()
 
     #### preprocessing data ####
@@ -73,13 +78,13 @@ class EEG_processor:
         """
         resamp_freq = resamp_freq if resamp_freq else self.config['sfreq']
         if resamp_freq is None or resamp_freq <= 0:
-            print(f"Invalid resampling frequency: {resamp_freq}. Frequency must be a positive number.")
+            logging.warning(f"Invalid resampling frequency: {resamp_freq}. Frequency must be a positive number.")
             return
         if self.sfreq > resamp_freq:
             self.raw.resample(resamp_freq)
             self.sfreq = resamp_freq
         else:
-            print(f"Resampling frequency {resamp_freq} must be lower than the current sampling frequency {self.sfreq}.")
+            logging.warning(f"Resampling frequency {resamp_freq} must be lower than the current sampling frequency {self.sfreq}.")
 
     def apply_filter(self, l_freq: float = None, h_freq: float = None, picks: str = 'eeg'):
         """
@@ -89,14 +94,18 @@ class EEG_processor:
         h_freq = h_freq if h_freq else self.config['h_freq']
         if l_freq and l_freq != 'None' and h_freq and h_freq != 'None':
             self.raw.filter(l_freq=l_freq, h_freq=h_freq, picks=picks)
+            logging.debug(f"Filtered data from {l_freq} to {h_freq}")
         elif l_freq and l_freq != 'None':
             self.raw.filter(l_freq=l_freq, h_freq=self.raw.info['sfreq'], picks=picks)
+            logging.debug(f"Filtered data from {l_freq}")
         elif h_freq and h_freq != 'None':
             self.raw.filter(l_freq=0, h_freq=h_freq, picks=picks)
+            logging.debug(f"Filtered data to {h_freq}")
         else:
-            print("No filtering performed as both l_freq and h_freq are not specified.")
+            logging.warning("No filtering performed as both l_freq and h_freq are not specified.")
 
     #### remontaging ####
+    #Legacy code
     def ensure_electrodes_present(self, anodes, cathods, new_names):
         """
         checks if the anode and cathode for the bipolar reference are present, if not they will be dropped
@@ -121,8 +130,11 @@ class EEG_processor:
         new_names = [nn for i, nn in enumerate(new_names) if i not in drop_idx]
         anodes = [a for i, a in enumerate(anodes) if i not in drop_idx]
         cathods = [c for i, c in enumerate(cathods) if i not in drop_idx]
+        logging.debug(f'checked the present electrodes')
+        logging.debug(f'The following channels could not be computed: {droped_names}')
         return anodes, cathods, new_names, droped_names
 
+    #Legacy
     def only_keep_10_20_channels_and_check_bipolar(self):
         """
         Checks the EEG channels for containing a valid part, only once and no part that is marked as invalid.
@@ -147,8 +159,10 @@ class EEG_processor:
                 added_bads.append(ch)
         self.raw.info['bads'] = self.raw.info['bads'] + added_bads
         self.raw.info['bads'] = list(set(self.raw.info['bads']))
+        logging.debug(f'checked the 10-20 system channels')
         return duplicate_positive
 
+    #Legacy
     def convert_electrode_names_to_channel_names(self, electrode_names: list[str], channel_names: list[str]):
         """
         Goes through the electrode names and converts them to channel names if the electrode name is part of the channel name
@@ -166,6 +180,7 @@ class EEG_processor:
                 if e_name.lower() in c_name.lower():
                     output_array[i] = c_name
                     break
+        logging.debug(f'converted the electrode names to channel names')
         return output_array
 
     def change_montage(self, montage: str = None):
@@ -181,6 +196,7 @@ class EEG_processor:
         # Apply the specified montage
         if montage == 'avg':
             ic(raw_internal.set_eeg_reference(ref_channels='average'))
+            logging.debug(f'changed the montage to average')
         # change montage to doublebanana
         elif montage == 'doublebanana':
             anodes = ['Fp2', 'F8', 'T4', 'T6',
@@ -202,6 +218,7 @@ class EEG_processor:
             anode_eeg_channels = self.convert_electrode_names_to_channel_names(anodes, raw_internal.ch_names)
             cathode_eeg_channels = self.convert_electrode_names_to_channel_names(cathodes, raw_internal.ch_names)
             try:
+                logging.debug(f'changed the montage to doublebanana')
                 # try setting the new bipolar reference
                 ic(mne.set_bipolar_reference(inst=raw_internal, anode=anode_eeg_channels, cathode=cathode_eeg_channels,
                                              ch_name=new_names, copy=False))
@@ -210,12 +227,12 @@ class EEG_processor:
                     # if setting failes in the previous step we need to check all channels are present and match
                     anode_eeg_channels, cathode_eeg_channels, new_names, dropped_names = self.ensure_electrodes_present(
                         anode_eeg_channels, cathode_eeg_channels, new_names)
-                    print(
+                    logging.warning(
                         f'montage could not be set fully, probably not all needed channels are present. The following channels could not be computed: {dropped_names}')
-                    ic(mne.set_bipolar_reference(inst=raw_internal, anode=anode_eeg_channels, cathode=cathode_eeg_channels,
-                                                 ch_name=new_names, copy=False))
+                    mne.set_bipolar_reference(inst=raw_internal, anode=anode_eeg_channels, cathode=cathode_eeg_channels,
+                                                 ch_name=new_names, copy=False)
                 except ValueError:
-                    print('montage could not be set at all')
+                    logging.error('montage could not be set at all')
                     return None
         # set cirumferential montage
         elif montage == 'circumferential':
@@ -233,23 +250,31 @@ class EEG_processor:
             cathode_eeg_channels = self.convert_electrode_names_to_channel_names(cathodes, raw_internal.ch_names)
             try:
                 # set montage
+                logging.debug(f'changed the montage to circumferential')
                 mne.set_bipolar_reference(inst=raw_internal, anode=anode_eeg_channels, cathode=cathode_eeg_channels,
                                           ch_name=new_names, copy=False)
             except ValueError:
                 # drop channels if montage could not be dropped
                 anode_eeg_channels, cathode_eeg_channels, new_names, dropped_names = self.ensure_electrodes_present(
                     anode_eeg_channels, cathode_eeg_channels, new_names)
-                print(
+                logging.error(
                     f'montage could not be set fully, probably not all needed channels are present. The following channels could not be computed: {dropped_names}')
                 mne.set_bipolar_reference(inst=raw_internal, anode=anode_eeg_channels, cathode=cathode_eeg_channels,
                                           ch_name=new_names, copy=False)
         # set montage to a specific channel
         elif montage in raw_internal.ch_names:
             raw_internal.set_eeg_reference(ref_channels=montage)
+            logging.debug(f'changed the montage to {montage}')
         else:
-            print(f'The given montage is not a viable option or a channel of the raw_internal object, no montage applied')
+            logging.warning(f'The given montage is not a viable option or a channel of the raw_internal object, no montage applied')
         
         return raw_internal
+
+    def extract_eeg_columns(self):
+        raw_copy = self.raw.copy()
+        eeg_channels = raw_copy.pick(picks='eeg').ch_names
+        logging.debug(f'extracted the eeg channels: {eeg_channels}')
+        return eeg_channels
 
     #### metric calculation ####
     def calc_metric_from_annotations(self) -> pd.DataFrame:
@@ -269,10 +294,11 @@ class EEG_processor:
         - pandas.DataFrame: A dataframe containing metrics for all epochs segmented from the annotated EEG data.
             """
             # Load data from the raw EEG object and convert it to a DataFrame
+        logging.debug(f'calculating metrics from annotations')
         self.raw.load_data()
         data = self.raw.to_data_frame()
-        eeg_cols = self.extract_eeg_columns(data)
-        print(f'Data shape: {data.shape}')
+        eeg_cols = self.extract_eeg_columns()
+        logging.info(f'Data shape: {data.shape}')
 
         # Initialize the ArrayProcessor for metric calculations
         array_processor = Array_processor(
@@ -284,7 +310,7 @@ class EEG_processor:
         )
         ep_start = self.config.get('start_time', 0)  # Default ep_start to 0 if None
         ep_stop = self.config.get('stop_time', None)
-        ep_dur = self.config.get('ep_dur', None)
+        ep_dur = self.config.get('duration', None)
         overlap = self.config.get('overlap', 0)
         relevant_annot_labels = self.config.get('annotations', [''])
         raw_annots = self.raw.annotations
@@ -304,14 +330,17 @@ class EEG_processor:
                 annot_duration_seconds = annot['duration']
                 annot_stop_seconds = annot_start_seconds + annot_duration_seconds
 
-                print(f'Processing annotation: {annot_name}, Times: {annot_start_seconds}-{annot_stop_seconds}')
+                logging.info(f'Processing annotation: {annot_name}, Times: {annot_start_seconds}-{annot_stop_seconds}')
 
                 # Calculate epoch start and stop times
+                #TODO: naming here is shit
                 ep_start_seconds = annot_start_seconds + ep_start
                 ep_stop_seconds = (min(ep_start_seconds + ep_stop, annot_stop_seconds)
                                    if ep_stop else annot_stop_seconds)
 
                 # Call the epoching function to calculate metrics
+                logging.info(f'calculating metrics from annotation: '
+                             f'{annot_name} from {ep_start_seconds} to {ep_stop_seconds} with duration {ep_dur} and overlap {overlap}')
                 sub_results_frame = array_processor.epoching(
                     ep_dur, ep_start_seconds, ep_stop_seconds, overlap, annot_name
                 )
@@ -323,7 +352,7 @@ class EEG_processor:
         if len(sub_frame_list) > 0:
             full_annot_frame = pd.concat(sub_frame_list, axis=0)
         else:
-            print('No annotations found in the EEG file.')
+            logging.warning('No annotations found in the EEG file.')
 
         return full_annot_frame
 
@@ -367,6 +396,8 @@ class EEG_processor:
             ep_dur = int(ep_stop - ep_start)
         overlap = self.config.get('overlap', 0)
         # Compute metrics using the epoching function
+        logging.info(f'calculating metrics from whole file with task label: '
+                     f'{task_label} from {ep_start} to {ep_stop} with duration {ep_dur} and overlap {overlap}')
         result_frame = array_processor.epoching(
             ep_dur, ep_start, ep_stop, overlap, task_label
         )
@@ -425,7 +456,7 @@ class EEG_processor:
             # Only keeps channels which correspond to the typical 10-20 system names
             bipolar = self.only_keep_10_20_channels_and_check_bipolar()
             if bipolar:
-                print(f'Most likely already has a bipolar montage \nChannel names: \n {self.raw.ch_names}')
+                logging.info(f'Most likely already has a bipolar montage \nChannel names: \n {self.raw.ch_names}')
 
             # Filter
             self.apply_filter()
@@ -434,12 +465,12 @@ class EEG_processor:
             self.downsample()
 
             # Montage (also excludes bads and non-EEG channels even if no remontaging is done)
+            #TODO: check if I really want this
             raw = self.change_montage()
             if not raw:
                 return 'could not set montage, maybe EEG is faulty, skipping EEG'
             else:
                 self.raw = raw
-
 
             # Calculate the metrics
             full_results_frame = self.compute_metrics_fif()
@@ -451,4 +482,5 @@ class EEG_processor:
             else:
                 return 'no metrics could be calculated'
         except Exception as e:
+            logging.error(f'Error during metric computation:')
             return f'Error during metric computation: {str(e)}'

@@ -1,4 +1,8 @@
 # custom folders
+*.bdf
+*.fdt
+*.set
+*.env
 *.edf
 *.csv
 *.fif

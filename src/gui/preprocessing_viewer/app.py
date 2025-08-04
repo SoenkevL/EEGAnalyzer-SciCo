@@ -127,7 +127,8 @@ class PreprocessingViewerApp:
                 self.preprocessing_pipeline = EEGPreprocessingPipeline(file_path)
 
                 # create channel categories
-                self.preprocessing_pipeline.categorize_channels(mark_unclassified_as_bad=True)
+                #TODO: proper solution
+                #self.preprocessing_pipeline.categorize_channels(mark_unclassified_as_bad=True)
 
                 # Mark flat channels as bad
                 self.preprocessing_pipeline.mark_bad_channels(self.preprocessing_pipeline.find_flat_channels_psd())

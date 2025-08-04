@@ -2,6 +2,7 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
-    <mapping directory="$USER_HOME$/PycharmProjects/Criticality_PCI_Anesthesia" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../RELAX" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../VajraCode-EEG" vcs="Git" />
   </component>
 </project>

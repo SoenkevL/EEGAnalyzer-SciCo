@@ -121,6 +121,12 @@ def select_metrics(name):
                        None, None]
         return metrics_functions, metrics_name_list, kwargs_list
 
+    elif name =='lzc_only':
+        metrics_name_list = ['lzc']
+        metrics_functions = [nk.complexity_lempelziv]
+        kwargs_list = [None]
+        return metrics_functions, metrics_name_list, kwargs_list
+
     elif name =='eof_0-1chaos':
         metrics_name_list = ['K-pipeline', 'K-pipeline_denoised', 'K']
         metrics_functions = [eop.chaos.chaos_pipeline, eop.chaos.chaos_pipeline, eop.chaos.z1_chaos_test]

@@ -17,12 +17,14 @@ This module provides the main processing functions for EEG analysis.
 """
 
 import os
-import sys
+from pprint import pprint
 from typing import Dict, List, Optional, Union, Any
 import pandas as pd
 from datetime import datetime
 from multiprocesspandas import applyparallel
 from sqlalchemy.orm import Mapped
+import logging
+from eeganalyzer.utils.LoggingConfiguration import setup_logging
 
 from eeganalyzer.core.eeg_processor import EEG_processor
 from eeganalyzer.core.csv_processor import CSVProcessor
@@ -30,7 +32,14 @@ from eeganalyzer.utils.database import Alchemist
 
 class Processor:
     
-    def __init__(self, config, log_file) -> None:
+    def __init__(self, config, log_file=None) -> None:
+        # Initialize logging
+        #TODO: change this up to use .env file
+        setup_logging(log_level=config.get('log_level', logging.INFO),
+                      log_file=log_file)
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self.logger.info("Processor initialized")
+        # initialize variables
         self.session = None
         self.config = config
         self.log_file = log_file
@@ -58,6 +67,7 @@ class Processor:
             dataset_path=self.current_experiment['bids_folder'],
             dataset_description=self.current_experiment['description']
         )
+        logging.debug(f"Added or updated dataset: {dataset.id}")
         return dataset.id
 
     def add_or_update_eeg(self, filepath, dataset_id: int=None) -> Any:
@@ -83,6 +93,7 @@ class Processor:
                 filename=file_name,
                 file_extension=ext,
             )
+        logging.debug(f"Added or updated eeg: {eeg.id}")
         return eeg
 
     def add_or_update_experiment(self, experiment: Dict[str, Any]=None, run: Dict[str, Any]=None) -> Any:
@@ -101,10 +112,11 @@ class Processor:
                 upper_cutoff=run['filter']['h_freq'],
                 montage=run['montage']
         )
+        logging.debug(f"Added or updated experiment: {experiment_entry.id}")
         return experiment_entry
 
     def populate_data_tables(self, experiment_entry: Any=None, table_exists: str = 'append') -> Optional[str]:
-        experiment_entry = experiment_entry if experiment_entry else self.current_experiment_entry 
+        experiment_entry = experiment_entry if experiment_entry else self.current_experiment_entry
         experiment_id = experiment_entry.id
         table_name = None
         for eeg in experiment_entry.eegs:
@@ -114,6 +126,7 @@ class Processor:
                 data = pd.read_csv(result_path)
                 table_name = Alchemist.add_metric_data_table(self.session, experiment_id, eeg_id, data, table_exists)
         self.session.commit()
+        logging.debug(f"populated data table: {table_name}")
         return table_name
 
     def get_files_dataframe(self) -> pd.DataFrame:
@@ -170,7 +183,7 @@ class Processor:
 
         # Create the DataFrame from the collected information
         df = pd.DataFrame(valid_files, columns=['file_path', 'outpath', 'already_processed'])
-
+        logging.debug(f"Generated DataFrame with {len(df)} files")
         return df
 
     @staticmethod
@@ -195,13 +208,14 @@ class Processor:
                              'sfreq': run['sfreq'],
                              'recompute': experiment['recompute']
                              }
+        logging.debug(f"Processing config: {pprint(processing_config, indent=4, width=100, compact=True)}")
         file_path = row['file_path']
         outpath = row['outpath']
         already_processed = row['already_processed']
 
         if not already_processed or processing_config['recompute']:
-            print(f"Processing file: {file_path}")
-            print(f"Output path: {outpath}")
+            logging.info(f"Processing file: {file_path}")
+            logging.info(f"Output path: {outpath}")
 
             # Initialize EEG_processor and compute metrics
             if file_path.endswith(".fif") or file_path.endswith(".edf"):
@@ -213,9 +227,9 @@ class Processor:
                 result = current_csv_processor.compute_metrics()
             else:
                 result = 'Result not computed. Output file ending not recognized.'
-            print(f"Result: {result}")
+            logging.info(f"Result: {result}")
         else:
-            print(f"Skipping already processed file: {file_path}")
+            logging.info(f"Skipping already processed file: {file_path}")
 
     def process_experiment(self) -> None:
         """
@@ -223,11 +237,7 @@ class Processor:
         """
 
         # Redirect all print outputs to the log file
-        if self.log_file:
-            #TODO: implement a proper logging system into my project
-            log_stream = open(self.log_file, 'w')
-            sys.stdout = log_stream  # Redirect print statements to log file
-        print(f'{"*" * 102}\n{"*" * 40} {datetime.today().strftime("%Y-%m-%d %H:%M:%S")} {"*" * 40}\n{"*" * 102}\n')
+        logging.info(f'{"*" * 102}\n{"*" * 40} {datetime.today().strftime("%Y-%m-%d %H:%M:%S")} {"*" * 40}\n{"*" * 102}\n')
             # Iterate through experiments defined in the configuration
         for experiment in self.config['experiments']:
             # make sure we can access our sqlite base
@@ -236,17 +246,17 @@ class Processor:
             with Alchemist.make_session(engine) as session:
                 self.session = session
                 # Extract experiment-level configuration
-                # 
+                #
                 # add or update dataset in sqlite database
                 self.current_dataset_id = self.add_or_update_dataset()
-                print(f"Using dataset ID: {self.current_dataset_id}")
+                logging.info(f"Using dataset ID: {self.current_dataset_id}")
 
                 # Iterate through runs for each experiment
                 for run in experiment['runs']:
                     self.current_run = run
                     # Extract run-level configuration
 
-                    print(
+                    logging.info(
                         f'{"#" * 20}'
                         f' Running experiment "{self.current_experiment['name']}"'
                         f' and run "{self.current_run['name']}"'
@@ -257,8 +267,6 @@ class Processor:
                     # create first experiment, then files df and add experiment to each eeg
                     # Create DataFrame of valid files to process (also adds the eegs to the database)
                     files_df = self.get_files_dataframe()
-                    print(f"Generated DataFrame with {len(files_df)} files:")
-                    # print(files_df.head())
 
 
                     n_chunks = max(len(files_df) // self.num_processes, 1)
@@ -276,9 +284,6 @@ class Processor:
                     self.populate_data_tables(self.current_experiment_entry)
 
         # Print a final message indicating completion
-        print(f"\n{'*' * 50}")
-        print(f"All processing complete. Results stored in database: {self.current_experiment['sqlite_path']}")
-        print(f"{'*' * 50}\n")
-
-        if self.log_file:
-            log_stream.close()
+        logging.info(f"\n{'*' * 50}")
+        logging.info(f"All processing complete. Results stored in database: {self.current_experiment['sqlite_path']}")
+        logging.info(f"{'*' * 50}\n")
