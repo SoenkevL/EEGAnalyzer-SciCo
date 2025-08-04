@@ -627,7 +627,7 @@ class Array_processor:
             eeg_dataframe = self.data.iloc[t_onset_samples:t_stop_samples, :]
 
             # Calculate metrics for the current epoch
-            logging.info(f"Calculating metrics for epoch {t_onset} to {t_onset + duration} seconds.")
+            logging.debug(f"Calculating metrics for epoch {t_onset} to {t_onset + duration} seconds.")
             sub_results_frame = self.calc_metrics_from_eeg_dataframe_and_annotations(
                 eeg_dataframe, task, t_onset, duration
             )
