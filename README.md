@@ -43,9 +43,11 @@ architecture that makes it easy to incorporate custom analysis functions and ext
         - Ubuntu:
           Follow [Stanford's QT installation guide](https://web.stanford.edu/dept/cs_edu/resources/qt/install-linux)
         - Arch: `sudo pacman -S qtcreator`
+        - mac: `brew install qt`
     - **Tk**: For additional GUI components
         - Ubuntu: `sudo apt-get -y install tk`
         - Arch: `sudo pacman -S tk`
+        - mac: `brew install python-tk`
 
 ### Installation Options
 
@@ -85,6 +87,21 @@ pip install eeganalyzer-scico
 
 ### Command-Line Interface
 
+#### EEG Preprocessing and visualization
+
+For interactive EEG preprocessing with visual feedback:
+
+``` bash
+preprocessor
+```
+
+Launch the interactive preprocessing GUI that provides:
+- Visual, step-by-step data processing
+- Real-time visualization of preprocessing effects
+- Interactive ICA component selection and artifact removal
+- Support for multiple EEG file formats (EDF, BDF, GDF, BrainVision, CNT, EEGLAB, FIF)
+- Save preprocessed data in various formats
+
 #### EEG Analysis
 
 ``` bash
@@ -97,29 +114,15 @@ eeganalyzer --yaml_config <config_file> --logfile_path <log_file>
 - `--logfile_path`: Path to log file (optional)
 
 #### Visualization
-
+This is still very rudimentary
 ``` bash
-eegviewer --sql_path <database_path>
+metricviewer --sql_path <database_path>
 ```
 
 **Arguments:**
 
 - `--sql_path`: Path to SQLite database file (required)
 
-#### EEG Preprocessing
-
-For interactive EEG preprocessing with visual feedback:
-
-``` bash
-python run_preprocessing_viewer.py
-```
-
-Launch the interactive preprocessing GUI that provides:
-- Visual, step-by-step data processing
-- Real-time visualization of preprocessing effects
-- Interactive ICA component selection and artifact removal
-- Support for multiple EEG file formats (EDF, BDF, GDF, BrainVision, CNT, EEGLAB, FIF)
-- Save preprocessed data in various formats
 
 ### Python API
 
