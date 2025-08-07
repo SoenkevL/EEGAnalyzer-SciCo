@@ -48,7 +48,7 @@ def find_best_match(raw_name, montage_list, similarity_threshold):
     # montage list needs to be sorted by length of string first to ensure the result to be as specific as possible
     sorted_montage_list = sorted(montage_list, key=len, reverse=True)
     for electrode in sorted_montage_list:
-        if electrode.lower() in normalized_raw.lower():
+        if electrode in normalized_raw:
             return electrode
 
     # Then try fuzzy matching
@@ -346,15 +346,17 @@ def update_annotations_suzanne(raw, annot_path, sampleSignalPath, method='add', 
     - raw: changed raw object
     '''
     if recompute or not os.path.exists(annot_path):
-        import matlab.engine
-        eng = matlab.engine.start_matlab()
-        # extract annotations
-        eng.extract_annotations_suzanne(sampleSignalPath, annot_path, nargout=0)
+        # import matlab.engine
+        # eng = matlab.engine.start_matlab()
+        # # extract annotations
+        # eng.extract_annotations_suzanne(sampleSignalPath, annot_path, nargout=0)
+        print(f'could not load file')
+        return raw
     annotations_sz = mat4py.loadmat(annot_path)
     annotations_sz = annotations_sz['annotations']
     # set new annotations
     if annotations_sz:
-        new_annots = mne.Annotations(annotations_sz['startDataRecord'], annotations_sz['duration'], annotations_sz['label'])
+        new_annots = mne.Annotations(annotations_sz['startDataRecord'], annotations_sz['duration'], annotations_sz['label'], orig_time=raw.annotations.orig_time)
         original_annots = raw.annotations  # save the original annotations
         if method == 'add':
             annots = original_annots + new_annots

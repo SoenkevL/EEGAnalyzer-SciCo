@@ -11,7 +11,7 @@ Date: 2025-06-03
 
 from eeganalyzer.preprocessing.PreprocessingFunctions import *
 import re
-from mne.preprocessing import ICA, create_ecg_epochs, create_eog_epochs
+from mne.preprocessing import ICA, create_ecg_epochs, create_eog_epochs, find_ecg_events
 from typing import Dict, List, Optional, Union, Any
 import matplotlib.pyplot as plt
 from pprint import pprint
@@ -34,7 +34,7 @@ class EEGPreprocessor:
     This class provides methods for loading, inspecting, filtering, resampling,
     and artifact removal from EEG/MEG data using MNE-Python.
     """
-
+    # configure class
     def __init__(self, filepath: str, preload: bool = True, log_level: str = 'INFO'):
         """
         Initialize the EEG preprocessor with enhanced logging.
@@ -48,26 +48,31 @@ class EEGPreprocessor:
         log_level : str, default='INFO'
             Logging level for MNE and custom logger
         """
+        self.ecg_evoked = None
+        self.eog_evoked = None
         self.filepath = filepath
         self.raw = None
         self.ica = None
         self.channel_categories = {}
         self.preprocessing_history = []
-        
+        self.filename = f'{os.path.splitext(os.path.split(self.filepath)[1])[0]}'
+        self.report = mne.Report(title=f'Preprocessing {self.filename}', raw_psd=True)
+
+        self.preprocessing_history.append(f'->{self.filename}<-')
         # Setup log file paths
         now = datetime.datetime.now()
         self.log_filename = f"{os.path.splitext(filepath)[0]}_preprocessing__{now:%Y_%m_%d_%H_%M_%S}.log"
-        
+
         # Configure MNE logging - this is the key fix!
         mne.set_log_level(log_level)
         mne.set_log_file(self.log_filename, output_format='%(asctime)s - MNE - %(levelname)s - %(message)s')
-        
+
         # Setup custom logger
         self.logger = logging.getLogger(f'EEGPreprocessor_{os.path.basename(filepath)}')
         self.logger.setLevel(getattr(logging, log_level.upper()))
-        
+
         self._setup_logging()
-        
+
         self.logger.info(f"Initializing EEG Preprocessor for {filepath}")
         self.logger.info(f"MNE logging configured to write to: {self.log_filename}")
         self.load_data(preload=preload)
@@ -79,26 +84,27 @@ class EEGPreprocessor:
             # File handler - append to the same file that MNE uses
             file_handler = logging.FileHandler(self.log_filename, mode='a')
             file_handler.setLevel(logging.DEBUG)
-            
+
             # Console handler
             console_handler = logging.StreamHandler()
             console_handler.setLevel(logging.INFO)
-            
+
             # Formatter
             formatter = logging.Formatter(
                 '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'
             )
             file_handler.setFormatter(formatter)
             console_handler.setFormatter(formatter)
-            
+
             # Add handlers
             self.logger.addHandler(file_handler)
             self.logger.addHandler(console_handler)
 
+    # load the datafile
     def load_data(self, preload: bool = True) -> None:
         """Load EEG data with enhanced logging."""
         self.logger.info(f"Loading data from {self.filepath}")
-        
+
         try:
             # MNE will now automatically log to the file we specified
             if self.filepath.endswith('.edf'):
@@ -111,19 +117,38 @@ class EEGPreprocessor:
                 self.raw = mne.io.read_raw_bdf(self.filepath, preload=preload, verbose=True)
             else:
                 self.raw = mne.io.read_raw(self.filepath, preload=preload, verbose=True)
-            
+
             # Log detailed information about loaded data
             self.logger.info(f"Successfully loaded data: {len(self.raw.ch_names)} channels, "
                            f"{self.raw.info['sfreq']} Hz, {self.raw.times[-1]:.2f} seconds")
             self.logger.debug(f"Data info: {self.raw.info}")
 
+
+            # There is a problem with the annotations in the edf files so we need to update them from custom matlab files
+            self._add_custom_annot()
+            self.logger.info('Updated annotations from .mat files')
+
             self.preprocessing_history.append(f"Loaded data from {self.filepath}")
+            self.report.add_raw(self.raw, title=f'Initial Raw Data')
             
         except Exception as e:
             self.logger.error(f"Failed to load data from {self.filepath}: {str(e)}")
             raise ValueError(f"Failed to load data from {self.filepath}: {str(e)}")
-    
-    def categorize_channels(self, mark_unclassified_as_bad = False,
+
+    def _add_custom_annot(self):
+        """
+        Custom function to deal with the EIRatio annotations to load from the matlab files from my master
+        Returns:
+            None
+        """
+        annot_path = self.filepath.replace('original.edf', 'annot-sz.mat')
+        if os.path.splitext(annot_path)[1] == '.mat':
+            update_annotations_suzanne(self.raw, annot_path, self.filepath, method='replace', recompute=False)
+        else:
+            print('no annotations found, continuing without custom annotation loading')
+
+    # categorize channels and apply montages
+    def categorize_channels_orig(self, mark_unclassified_as_bad = False,
                             patterns=None, merge_with_default=True,
                             save_types_in_info=True) -> Dict[str, List[str]]:
         """
@@ -180,27 +205,466 @@ class EEGPreprocessor:
             self.preprocessing_history.append("Marked unclassified channels as bad")
             self.logger.info('marked unclassified channels as bad')
         return self.channel_categories
-    
+
+    def categorize_channels(self, mark_unclassified_as_bad=False):
+        CUSTOM_PATTERNS = {
+            'EOG': [
+                r'.*Ref-?2.*',  # Matches anything containing 'Ref-0' or 'Ref0'
+            ],
+            'ECG': [
+                r'.*[Ii][Nn].*',  # Matches anything containing 'In' or 'ln' (case insensitive)
+            ]
+        }
+        categories = self.categorize_channels_orig(patterns=CUSTOM_PATTERNS, merge_with_default=True,
+                                                mark_unclassified_as_bad=mark_unclassified_as_bad)
+        return categories
+
+
+    def rename_channels(self, mapping: Dict):
+        """
+        Rename EEG channels using a mapping dictionary.
+
+        Parameters
+        ----------
+        mapping : dict
+            Dictionary containing the mapping of old channel names to new channel names
+        """
+        try:
+            self.raw.rename_channels(mapping)
+            self.preprocessing_history.append(f"Renamed channels using mapping")
+            print(f"Successfully renamed channels according to provided mapping")
+        except Exception as e:
+            print(f"Error renaming channels: {str(e)}")
+
+    def fit_montage(self, montage: str = 'standard_1020', show_example=False) -> None:
+        """
+        Set electrode montage for spatial information.
+
+        Parameters
+        ----------
+        montage : str, default='standard_1020'
+            Montage to use ('standard_1020', 'standard_1005', etc.)
+        show_example: bool, default=False
+            If a plot of the default montage should be created
+        """
+        # Montage
+        # print('\n Setting up montage for the eeg, using a standard montage from mne')
+        montage_name = montage
+        ## Show montage and get object
+        if show_example:
+            montage = show_example_montage(montage)
+        else:
+            montage = make_montage(montage_name)
+        ## Create electrode mapping
+        temp_copy = self.raw.copy()
+        raw_orig_ch_names = temp_copy.pick('eeg', exclude='bads').ch_names
+        montage_ch_names = montage.ch_names
+        mapping_dict, unmatched = create_electrode_mapping(montage_ch_names, raw_orig_ch_names)
+        self.logger.info('Creating channel name mapping to fit a montage')
+        self.logger.info(mapping_dict)
+        self.logger.info(f'Could not match channels: {unmatched}')
+        ## Rename channel names
+        self.rename_channels(mapping_dict)
+        ## Apply electrode
+        self.set_montage(montage_name)
+        ## Recategorize the channels
+        self.categorize_channels()
+        self.report.add_raw(self.raw, title='Fitted a montage to the data')
+
+        ## Finding epochs (probably temporary here)
+        #TODO: move into a more appropriate position
+        self.find_ecg_epochs(show=True)
+        self.find_eog_epochs(show=True)
+
+    def set_montage(self, montage):
+        try:
+            montage_obj = mne.channels.make_standard_montage(montage)
+            self.raw.set_montage(montage_obj, match_case=False, on_missing='warn')
+            self.logger.info(f"Set montage: {montage}")
+            self.preprocessing_history.append(f"Set montage: {montage}")
+        except Exception as e:
+            print(f"Error setting montage: {str(e)}")
+
+    # artifact identification and correction
+    def find_flat_channels_psd(self, f_ratio_flat=0.5, l_freq=1, h_freq=40, show=False) -> List:
+        """
+        Identifies channels with flat frequency power spectrum in EEG data.
+
+        This method processes raw EEG data to identify channels having a flat
+        power spectral density (PSD). It applies a bandpass filter to the data,
+        computes the PSD, and compares frequency power values for each channel
+        against the median power across frequencies. Channels with a sufficiently
+        high proportion of frequency bins showing power below a threshold are
+        considered flat channels.
+
+        Parameters:
+        f_ratio_flat: float
+            The fraction of frequency bins that must have power below the specified
+            threshold for a channel to be marked as flat. Default is 0.5.
+
+        Returns:
+        List
+            A list of names of the channels identified as flat.
+        """
+        self.logger.info('Finding flat channels based on filtered PSD (1-40Hz)')
+        temp_raw = self.raw.copy()
+        temp_raw = temp_raw.filter(l_freq=l_freq, h_freq=h_freq)
+        spectrum = temp_raw.compute_psd(fmax=h_freq + 5)
+        if show:
+            spectrum.plot()
+        spectral_data = spectrum.get_data()
+        median_power_per_freq = np.median(spectral_data, axis=0)
+        flat_freqs = np.zeros_like(spectral_data)
+        for i, row in enumerate(spectral_data):
+            flat_freqs[i] = row < median_power_per_freq / 20
+        number_freq_bins = flat_freqs.shape[1]
+        mark_channel_names = []
+        for i, row in enumerate(flat_freqs):
+            if np.sum(row) >= number_freq_bins * f_ratio_flat:
+                mark_channel_names.append(spectrum.ch_names[i])
+        if mark_channel_names:
+            self.logger.info(f'found flat channels: {mark_channel_names}')
+        else:
+            self.logger.info('No flat channels found')
+        return mark_channel_names
+
+    def find_ecg_epochs(self, ecg_channel=None, show=False):
+        """
+        Detect ECG epochs if there is an ECG channel in the data or given.
+        
+        Parameters
+        ----------
+        ecg_channel : str or None
+            Name of the ECG channel to use. If None, will automatically detect ECG channels.
+        show : bool
+            Whether to show the plot (default: False)
+        
+        Returns
+        -------
+        fig : matplotlib.figure.Figure or None
+            Figure object if ECG channel is found and processed, None otherwise
+        """
+
+        self.logger.info('Finding ECG epochs')
+        try:
+            if ecg_channel:
+                ecg_evoked = create_ecg_epochs(self.raw, ch_name=ecg_channel).average()
+            else:
+                ecg_evoked = create_ecg_epochs(self.raw).average()
+            ecg_evoked.apply_baseline(baseline=(None, -0.2))
+            fig = ecg_evoked.plot_joint(show=False)
+            fig.suptitle('ECG epoch')
+            self.report.add_figure(fig, title='ECG-epochs', section='Artifact epochs')
+            self.ecg_evoked = ecg_evoked
+            if show:
+                fig.show()
+            return fig
+        except Exception as e:
+            self.logger.info(f'No ECG channel found: {str(e)}')
+            return None
+
+    def find_eog_epochs(self, eog_channel=None, show=False):
+        """
+        Identifies epochs in an EEG dataset that correspond to EOG (Electrooculogram)-related artifacts, allowing for better
+        artifact handling and visualization. If no channels are specified, the method attempts to automatically identify
+        EOG channels from the dataset. Optionally provides a visualization of the processed EOG data.
+
+        Args:
+            eog_channels: The name(s) of the EOG channel(s) to be used. If None, the method will find EOG channels
+                automatically by checking the channel type.
+            show: If True, displays the generated plot of the EOG-evoked data.
+
+        Returns:
+            matplotlib.figure.Figure or None: A figure object containing the visualization of the EOG-evoked response,
+            or None if no EOG channels are found.
+        """
+        self.logger.info('Finding EOG epochs')
+        try:
+            if eog_channel:
+                eog_evoked = create_eog_epochs(self.raw, ch_name=eog_channel).average()
+            else:
+                eog_evoked = create_eog_epochs(self.raw).average()
+            eog_evoked.apply_baseline(baseline=(None, -0.2))
+            fig = eog_evoked.plot_joint(show=False)
+            fig.suptitle('EOG epoch')
+            self.report.add_figure(fig, title='EOG-epochs', section='Artifact epochs')
+            if show:
+                fig.show()
+            self.eog_evoked=eog_evoked
+            return fig
+        except Exception as e:
+            self.logger.info(f'No EOG channel found: {str(e)}')
+            return None
+            
+    ## ica
+    def fit_ica(self, n_components: Optional[Union[int, float]] = None,
+                picks: Optional[Union[str, List[str]]] = None,
+                t_min: Optional[float] = 0, crop_duration: Optional[float] = None,
+                filter_kwargs: Optional[Dict[str, Any]] = None,
+                plot_eeg=False, plot_block=False,
+                random_state: int = 42) -> None:
+        """
+        Fit Independent Component Analysis (ICA) for artifact removal.
+
+        Parameters
+        ----------
+        n_components : int, optional
+            Number of ICA components to compute
+        picks : str or list, optional
+            Channels to include in ICA, if None all channels not marked as bad are included
+        t_min : float, optional
+            Where to start the cropped section
+        crop_duration : float, optional
+            Duration to crop data for ICA fitting (for computational efficiency)
+        filter_kwargs: Dict, optional
+            arguments for raw.filter that is applied before the ica decomposition but will not be applied to the original raw file
+            of the processor. Leaf out for no filtering
+        plot_eeg: bool, default=False
+            if the eeg used for the fitting should be plotted beforehand
+        plot_block: bool, default=False
+            If the plot of the eeg used for ica should block the fitting
+        random_state : int, default=42
+            Random state for reproducibility
+        """
+        if picks is None:
+            picks = 'data'
+
+        self.logger.info(f"Starting ICA fitting with n_components={n_components}, "
+                         f"picks={picks}, crop_duration={crop_duration}")
+
+        # Prepare data for ICA
+        raw_for_ica = self.raw.copy()
+        if crop_duration is not None:
+            self.logger.info(f"Cropping data for ICA: {t_min}s to {t_min + crop_duration}s")
+            raw_for_ica.crop(tmin=t_min, tmax=t_min + crop_duration)
+
+        raw_for_ica.pick(picks)
+        self.logger.info(f"Selected {len(raw_for_ica.ch_names)} channels for ICA")
+
+        if filter_kwargs:
+            self.logger.info(f"Applying pre-ICA filtering: {filter_kwargs}")
+            raw_for_ica.filter(**filter_kwargs, verbose=True)
+
+        if plot_eeg:
+            raw_for_ica.plot(block=plot_block, title='EEG used for ICA fitting')
+
+        # Determine number of components
+        if n_components is None:
+            n_components = min(len(raw_for_ica.ch_names), 25)
+
+        self.logger.info(f"Fitting ICA with {n_components} components")
+
+        try:
+            self.ica = ICA(
+                n_components=n_components,
+                max_iter='auto',
+                random_state=random_state,
+                method='infomax',
+                fit_params=dict(extended=True)
+            )
+
+            # MNE will log ICA fitting progress to the file
+            self.ica.fit(raw_for_ica, verbose=True)
+
+            # Calculate and log explained variance
+            explained_var = self.ica.get_explained_variance_ratio(raw_for_ica)
+
+            self.logger.info(f"ICA fitted successfully with {n_components} components")
+            for ch_type, variance in explained_var.items():
+                self.logger.info(f"  {ch_type}: {variance:.2%} variance explained")
+
+            self.preprocessing_history.append(f"Fitted ICA with {n_components} components")
+            self.report.add_ica(self.ica, title='ICA fitting', inst=self.raw, n_jobs=1)
+
+        except Exception as e:
+            self.logger.error(f"Error fitting ICA: {str(e)}")
+            self.ica = None
+
+    def find_bad_ica_components_eog(self, show=True):
+        try:
+            eog_indices, eog_scores = self.ica.find_bads_eog(self.raw, verbose=True)
+            self.logger.info(f"Found {len(eog_indices)} bad ICA components for EOG at positions {eog_indices}")
+            fig = self.ica.plot_scores(scores=eog_scores, title='EOG scores', show=False)
+            timelocked_component_fig = self.ica.plot_sources(self.eog_evoked, show=False)
+            section='ICA EOG components'
+            self.report.add_figure(fig, title='EOG scores for ica components', section=section)
+            self.report.add_figure(timelocked_component_fig, title='EOG timelocked ICA components', section=section)
+            if show:
+                fig.show()
+                timelocked_component_fig.show()
+            return fig
+        except Exception as e:
+            self.logger.error(f"Error finding bad ICA components for EOG: {str(e)}")
+            return None
+
+    def find_bad_ica_components_emg(self, show=True):
+        try:
+            emg_indices, emg_scores = self.ica.find_bads_muscle(self.raw, verbose=True)
+            self.logger.info(f"Found {len(emg_indices)} bad ICA components for EOG at positions {emg_indices}")
+            fig = self.ica.plot_scores(scores=emg_scores, title='EMG scores', show=False)
+            self.report.add_figure(fig, title='EMG scores for ica components')
+            if show:
+                fig.show()
+            return fig
+        except Exception as e:
+            self.logger.error(f"Error finding bad ICA components for EMG: {str(e)}")
+            return None
+
+    def find_bad_ica_components_ecg(self, show=True):
+        try:
+            ecg_indices, ecg_scores = self.ica.find_bads_ecg(self.raw, verbose=True)
+            self.logger.info(f"Found {len(ecg_indices)} bad ICA components for ECG at positions {ecg_indices}")
+            fig = self.ica.plot_scores(scores=ecg_scores, title='ECG scores', show=False)
+            timelocked_component_fig = self.ica.plot_sources(self.ecg_evoked, show=False)
+            section='ICA ECG components'
+            self.report.add_figure(fig, title='ECG scores for ica components', section=section)
+            self.report.add_figure(timelocked_component_fig, title='ECG timelocked ICA components', section=section)
+            if show:
+                fig.show()
+                timelocked_component_fig.show()
+            return fig
+        except Exception as e:
+            self.logger.error(f"Error finding bad ICA components for ECG: {str(e)}")
+            return None
+
+    def exclude_ica_components(self, components: List[int]) -> None:
+        """
+        Mark ICA components for exclusion.
+
+        Parameters
+        ----------
+        components : list
+            List of component indices to exclude
+        """
+        if self.ica is None:
+            print("ICA has not been fitted yet. Run fit_ica() first.")
+            return
+
+        self.ica.exclude = components
+        print(f"Marked components {components} for exclusion")
+        self.preprocessing_history.append(f"Excluded ICA components: {components}")
+        self.logger.info(f"Excluded ICA components: {components}")
+
+    def apply_ica(self, exclude: Optional[List[int]] = None) -> None:
+        """
+        Apply ICA to remove artifacts from the data.
+
+        Parameters
+        ----------
+        exclude : list, optional
+            Components to exclude (if not already set)
+        """
+        if self.ica is None:
+            print("ICA has not been fitted yet. Run fit_ica() first.")
+            return
+
+        if exclude is not None:
+            self.ica.exclude = exclude
+
+        try:
+            self.ica.apply(self.raw, verbose=True)
+            excluded = self.ica.exclude
+            print(f"Applied ICA, excluded components: {excluded}")
+            self.preprocessing_history.append(f"Applied ICA, excluded: {excluded}")
+        except Exception as e:
+            print(f"Error applying ICA: {str(e)}")
+
+    ## handling bad channels
+    def mark_bad_channels(self, bad_channels: List[str]) -> None:
+        """
+        Mark channels as bad.
+
+        Parameters
+        ----------
+        bad_channels : list
+            List of channel names to mark as bad
+        """
+        self.raw.info['bads'].extend([ch for ch in bad_channels if ch not in self.raw.info['bads']])
+        self.logger.info(f"Marked channels as bad: {bad_channels}")
+        self.logger.info(f"Total bad channels: {self.raw.info['bads']}")
+        self.preprocessing_history.append(f"Marked bad channels: {bad_channels}")
+
+    def interpolate_bad_channels(self) -> None:
+        """Interpolate bad channels using spherical splines."""
+        if not self.raw.info['bads']:
+            print("No bad channels to interpolate")
+            return
+
+        try:
+            self.raw.interpolate_bads(reset_bads=True)
+            print(f"Interpolated bad channels")
+            self.preprocessing_history.append("Interpolated bad channels")
+        except Exception as e:
+            print(f"Error interpolating bad channels: {str(e)}")
+
+    # filtering and resampling
+    def apply_filter(self, l_freq: Optional[float] = 0.5, h_freq: Optional[float] = 40.0,
+                     picks: Optional[Union[str, List[str]]] = None) -> None:
+        """Apply bandpass filter with detailed logging."""
+        filter_info = f"l_freq={l_freq}, h_freq={h_freq}, picks={picks}"
+        self.logger.info(f"Applying filter: {filter_info}")
+
+        try:
+            # MNE will log filter details to the file automatically
+            self.raw.filter(
+                l_freq=l_freq,
+                h_freq=h_freq,
+                picks=picks if picks else 'all',
+                filter_length='auto',
+                l_trans_bandwidth='auto',
+                h_trans_bandwidth='auto',
+                method='fir',
+                phase='zero',
+                verbose=True
+            )
+
+            self.logger.info(f"Filter applied successfully: {filter_info}")
+            self.preprocessing_history.append(f"Applied filter: {filter_info}")
+            self.report.add_raw(self.raw, title=f'filtered raw data with [{l_freq}, {h_freq}]Hz')
+
+        except Exception as e:
+            self.logger.error(f"Error applying filter: {str(e)}")
+
+    def resample_data(self, sfreq: float) -> None:
+        """
+        Resample the data to a new sampling frequency.
+
+        Parameters
+        ----------
+        sfreq : float
+            New sampling frequency in Hz
+        """
+        try:
+            original_sfreq = self.raw.info['sfreq']
+            self.raw.resample(sfreq, verbose=True)
+            self.preprocessing_history.append(f"Resampled: {original_sfreq} Hz -> {sfreq} Hz")
+            self.logger.info('Applied resampling successfully')
+            print(f"Resampled data from {original_sfreq} Hz to {sfreq} Hz")
+        except Exception as e:
+            self.logger.info('resampling failed')
+            print(f"Error resampling data: {str(e)}")
+
+    # prints and plots
     def print_channel_info(self) -> None:
         """Print detailed information about channels and their categories."""
-        print("\n" + "="*60)
+        print("\n" + "=" * 59)
         print("CHANNEL INFORMATION")
-        print("="*60)
-        
+        print("=" * 59)
+
         print(f"Total channels: {len(self.raw.ch_names)}")
         print(f"Sampling frequency: {self.raw.info['sfreq']} Hz")
-        print(f"Duration: {self.raw.times[-1]:.2f} seconds")
-        
+        print(f"Duration: {self.raw.times[-2]:.2f} seconds")
+
         print("\nChannel Categories:")
-        print("-" * 30)
+        print("-" * 29)
         for category, channels in self.channel_categories.items():
             if channels:
                 print(f"{category}: {len(channels)} channels")
-                if len(channels) <= 10:
+                if len(channels) <= 9:
                     print(f"  {', '.join(channels)}")
                 else:
-                    print(f"  {', '.join(channels[:5])} ... {', '.join(channels[-2:])}")
-        
+                    print(f"  {', '.join(channels[:4])} ... {', '.join(channels[-2:])}")
+
         print(f"\nBad channels: {self.raw.info['bads']}")
 
     def plot_eeg_data(self, duration: float = 20.0, n_channels: int = 20,
@@ -243,7 +707,10 @@ class EEGPreprocessor:
                     block=block,
                     show_options=True,
                     title=title,
-                    bgcolor='white',
+                    theme='light',
+                    color=dict(mag='darkblue', grad='b', eeg='k', eog='navy', ecg='m',
+                                 emg='k', ref_meg='steelblue', misc='k', stim='k',
+                                 resp='k', chpi='k'),
                     **plot_kwargs
                 )
             else:
@@ -255,7 +722,10 @@ class EEGPreprocessor:
                     block=block,
                     show_options=True,
                     title=title,
-                    bgcolor='white',
+                    theme='light',
+                    color = dict(mag='darkblue', grad='b', eeg='k', eog='navy', ecg='m',
+                                 emg='k', ref_meg='steelblue', misc='k', stim='k',
+                                 resp='k', chpi='k')
                 )
             return None
                 
@@ -264,7 +734,9 @@ class EEGPreprocessor:
             return None
 
     def plot_power_spectral_density(self, picks: Optional[Union[str, List[str]]] = None,
-                                    fmin: float = 0.5, fmax: float = 50.0, title: Optional[str] = None,
+                                    fmin: float = 0.5, fmax: float = 50.0,
+                                    t_min: int = None, t_max: int = None,
+                                    title: Optional[str] = None,
                                     show=False) -> plt.figure:
         """
         Plot power spectral density of the data.
@@ -295,212 +767,22 @@ class EEGPreprocessor:
                 picks=picks,
                 fmin=fmin,
                 fmax=fmax,
-                show=False
+                show=False,
+                tmin=t_min,
+                tmax=t_max
             )
             psd_fig.suptitle(title)
             if show:
                 psd_fig.show()
+
+            # self.report.add_figure(psd_fig, title='plotted PSD')
             return psd_fig
                 
         except Exception as e:
             print(f"Error plotting PSD: {str(e)}")
             return None
     
-    def apply_filter(self, l_freq: Optional[float] = 0.5, h_freq: Optional[float] = 40.0,
-                    picks: Optional[Union[str, List[str]]] = None) -> None:
-        """Apply bandpass filter with detailed logging."""
-        filter_info = f"l_freq={l_freq}, h_freq={h_freq}, picks={picks}"
-        self.logger.info(f"Applying filter: {filter_info}")
-        
-        try:
-            # MNE will log filter details to the file automatically
-            self.raw.filter(
-                l_freq=l_freq,
-                h_freq=h_freq,
-                picks=picks if picks else 'all',
-                filter_length='auto',
-                l_trans_bandwidth='auto',
-                h_trans_bandwidth='auto',
-                method='fir',
-                phase='zero',
-                verbose=True
-            )
-            
-            self.logger.info(f"Filter applied successfully: {filter_info}")
-            self.preprocessing_history.append(f"Applied filter: {filter_info}")
-            
-        except Exception as e:
-            self.logger.error(f"Error applying filter: {str(e)}")
-
-    def resample_data(self, sfreq: float) -> None:
-        """
-        Resample the data to a new sampling frequency.
-        
-        Parameters
-        ----------
-        sfreq : float
-            New sampling frequency in Hz
-        """
-        try:
-            original_sfreq = self.raw.info['sfreq']
-            self.raw.resample(sfreq, verbose=True)
-            self.preprocessing_history.append(f"Resampled: {original_sfreq} Hz -> {sfreq} Hz")
-            self.logger.info('Applied resampling successfully')
-            print(f"Resampled data from {original_sfreq} Hz to {sfreq} Hz")
-        except Exception as e:
-            self.logger.info('resampling failed')
-            print(f"Error resampling data: {str(e)}")
-
-    def find_flat_channels_psd(self, f_ratio_flat = 0.5, l_freq=1, h_freq=40, show=False) -> List:
-        """
-        Identifies channels with flat frequency power spectrum in EEG data.
-
-        This method processes raw EEG data to identify channels having a flat
-        power spectral density (PSD). It applies a bandpass filter to the data,
-        computes the PSD, and compares frequency power values for each channel
-        against the median power across frequencies. Channels with a sufficiently
-        high proportion of frequency bins showing power below a threshold are
-        considered flat channels.
-
-        Parameters:
-        f_ratio_flat: float
-            The fraction of frequency bins that must have power below the specified
-            threshold for a channel to be marked as flat. Default is 0.5.
-
-        Returns:
-        List
-            A list of names of the channels identified as flat.
-        """
-        temp_raw = self.raw.copy()
-        temp_raw = temp_raw.filter(l_freq=l_freq, h_freq=h_freq)
-        spectrum = temp_raw.compute_psd(fmax=h_freq+5)
-        if show:
-            spectrum.plot()
-        spectral_data = spectrum.get_data()
-        median_power_per_freq = np.median(spectral_data, axis=0)
-        flat_freqs = np.zeros_like(spectral_data)
-        for i, row in enumerate(spectral_data):
-           flat_freqs[i] = row < median_power_per_freq/20
-        number_freq_bins = flat_freqs.shape[1]
-        mark_channel_names = []
-        for i, row in enumerate(flat_freqs):
-            if np.sum(row) >= number_freq_bins*f_ratio_flat:
-                mark_channel_names.append(spectrum.ch_names[i])
-        return mark_channel_names
-
-    def detect_artifacts_automatic(self, ecg_channel: Optional[str]=None,
-                                   eog_channels: Optional[Union[str | list[str]]]=None) -> Dict[str, List]:
-        """
-        Automatically detect ECG and EOG artifacts.
-
-        Returns
-        -------
-        dict
-            Dictionary containing detected artifacts
-        """
-        artifacts = {'ecg_events': [], 'eog_events': []}
-
-        # Try to find ECG artifacts
-        try:
-            ecg_epochs = create_ecg_epochs(self.raw, ch_name=ecg_channel, reject=None)
-            artifacts['ecg_events'] = ecg_epochs.events
-            print(f"Detected {len(ecg_epochs.events)} ECG events")
-        except Exception as e:
-            print(f"Could not detect ECG artifacts: {str(e)}")
-
-        # Try to find EOG artifacts
-        try:
-            eog_epochs = create_eog_epochs(self.raw, ch_name=eog_channels, reject=None)
-            artifacts['eog_events'] = eog_epochs.events
-            print(f"Detected {len(eog_epochs.events)} EOG events")
-        except Exception as e:
-            print(f"Could not detect EOG artifacts: {str(e)}")
-        
-        self.preprocessing_history.append("Performed automatic artifact detection")
-        return artifacts
-    
-    def fit_ica(self, n_components: Optional[Union[int, float]] = None, 
-                picks: Optional[Union[str, List[str]]] = None,
-                t_min: Optional[float] = 0, crop_duration: Optional[float] = None, 
-                filter_kwargs: Optional[Dict[str, Any]] = None,
-                plot_eeg=False, plot_block=False,
-                random_state: int = 42) -> None:
-        """
-        Fit Independent Component Analysis (ICA) for artifact removal.
-
-        Parameters
-        ----------
-        n_components : int, optional
-            Number of ICA components to compute
-        picks : str or list, optional
-            Channels to include in ICA, if None all channels not marked as bad are included
-        t_min : float, optional
-            Where to start the cropped section
-        crop_duration : float, optional
-            Duration to crop data for ICA fitting (for computational efficiency)
-        filter_kwargs: Dict, optional
-            arguments for raw.filter that is applied before the ica decomposition but will not be applied to the original raw file
-            of the processor. Leaf out for no filtering
-        plot_eeg: bool, default=False
-            if the eeg used for the fitting should be plotted beforehand
-        plot_block: bool, default=False
-            If the plot of the eeg used for ica should block the fitting
-        random_state : int, default=42
-            Random state for reproducibility
-        """
-        if picks is None:
-            picks = 'data'
-
-        self.logger.info(f"Starting ICA fitting with n_components={n_components}, "
-                        f"picks={picks}, crop_duration={crop_duration}")
-
-        # Prepare data for ICA
-        raw_for_ica = self.raw.copy()
-        if crop_duration is not None:
-            self.logger.info(f"Cropping data for ICA: {t_min}s to {t_min + crop_duration}s")
-            raw_for_ica.crop(tmin=t_min, tmax=t_min + crop_duration)
-
-        raw_for_ica.pick(picks)
-        self.logger.info(f"Selected {len(raw_for_ica.ch_names)} channels for ICA")
-
-        if filter_kwargs:
-            self.logger.info(f"Applying pre-ICA filtering: {filter_kwargs}")
-            raw_for_ica.filter(**filter_kwargs, verbose=True)
-
-        if plot_eeg:
-            raw_for_ica.plot(block=plot_block, title='EEG used for ICA fitting')
-
-        # Determine number of components
-        if n_components is None:
-            n_components = min(len(raw_for_ica.ch_names), 25)
-        
-        self.logger.info(f"Fitting ICA with {n_components} components")
-        
-        try:
-            self.ica = ICA(
-                n_components=n_components,
-                max_iter='auto',
-                random_state=random_state,
-                method='infomax',
-                fit_params=dict(extended=True)
-            )
-            
-            # MNE will log ICA fitting progress to the file
-            self.ica.fit(raw_for_ica, verbose=True)
-            
-            # Calculate and log explained variance
-            explained_var = self.ica.get_explained_variance_ratio(raw_for_ica)
-            
-            self.logger.info(f"ICA fitted successfully with {n_components} components")
-            for ch_type, variance in explained_var.items():
-                self.logger.info(f"  {ch_type}: {variance:.2%} variance explained")
-            
-            self.preprocessing_history.append(f"Fitted ICA with {n_components} components")
-            
-        except Exception as e:
-            self.logger.error(f"Error fitting ICA: {str(e)}")
-            self.ica = None
-
+    ## ica plotting
     def plot_ica_components(self, components: Optional[List[int]] = None,
                            title: Optional[str] = None, show=False) -> plt.figure:
         """
@@ -525,9 +807,9 @@ class EEGPreprocessor:
         
         try:
             if components is not None:
-                fig = self.ica.plot_components(picks=components, show=show, title=title)
+                fig = self.ica.plot_components(picks=components, show=show, title=title, inst=self.raw)
             else:
-                fig = self.ica.plot_components(show=show, title=title)
+                fig = self.ica.plot_components(show=show, title=title, inst=self.raw)
             return fig
                 
         except Exception as e:
@@ -587,60 +869,29 @@ class EEGPreprocessor:
     def print_ica_variance(self):
         pprint(self.ica.get_explained_variance_ratio(self.raw))
     
-    def exclude_ica_components(self, components: List[int]) -> None:
-        """
-        Mark ICA components for exclusion.
-        
-        Parameters
-        ----------
-        components : list
-            List of component indices to exclude
-        """
-        if self.ica is None:
-            print("ICA has not been fitted yet. Run fit_ica() first.")
-            return
-        
-        self.ica.exclude = components
-        print(f"Marked components {components} for exclusion")
-        self.preprocessing_history.append(f"Excluded ICA components: {components}")
-        self.logger.info(f"Excluded ICA components: {components}")
-    
-    def apply_ica(self, exclude: Optional[List[int]] = None) -> None:
-        """
-        Apply ICA to remove artifacts from the data.
-        
-        Parameters
-        ----------
-        exclude : list, optional
-            Components to exclude (if not already set)
-        """
-        if self.ica is None:
-            print("ICA has not been fitted yet. Run fit_ica() first.")
-            return
-        
-        if exclude is not None:
-            self.ica.exclude = exclude
-        
-        try:
-            self.ica.apply(self.raw, verbose=True)
-            excluded = self.ica.exclude
-            print(f"Applied ICA, excluded components: {excluded}")
-            self.preprocessing_history.append(f"Applied ICA, excluded: {excluded}")
-        except Exception as e:
-            print(f"Error applying ICA: {str(e)}")
-
-    def run_ica_fitting(self):
+    # pipeline functions
+    ## ica
+    def run_ica_fitting(self, start, duration, find_ecg_sources=True, find_eog_sources=True, find_emg_sources=True):
         # Fit ICA
         print("\n9. Fitting ICA...")
+        psd_fig_target_region = self.plot_power_spectral_density(t_max=start+duration, t_min=start, title='Ica fitting region PSD')
+        self.report.add_figure(psd_fig_target_region, title=f'PSD of the ica fitting region ({start} - {start+duration}')
         ica_channels = [self.channel_categories.get(category, []) for category in ['EEG', 'EMG', 'ECG', 'EOG']]
         ica_channels = [channel for sublist in ica_channels for channel in sublist]
-        self.fit_ica(n_components=15, crop_duration=60,
+        self.fit_ica(n_components=15, crop_duration=duration,
+                     t_min=start,
                      picks=ica_channels,
                      filter_kwargs={
                          'l_freq': 1,
                          'h_freq': 40,
                         }
                      )
+        if find_ecg_sources:
+            self.find_bad_ica_components_ecg()
+        if find_eog_sources:
+            self.find_bad_ica_components_eog()
+        if find_emg_sources:
+            self.find_bad_ica_components_emg()
 
     def run_ica_selection(self, apply=True):
         # Plot ICA components with multiprocessing
@@ -668,76 +919,40 @@ class EEGPreprocessor:
         # Remove ica components that were excluded
         self.apply_ica()
 
-    def mark_bad_channels(self, bad_channels: List[str]) -> None:
+    ## artifacts
+    def detect_artifacts_automatic(self, ecg_channel: Optional[str] = None,
+                                   eog_channels: Optional[Union[str | list[str]]] = None) -> Dict[str, List]:
         """
-        Mark channels as bad.
-        
-        Parameters
-        ----------
-        bad_channels : list
-            List of channel names to mark as bad
+        Automatically detect ECG and EOG artifacts.
+
+        Returns
+        -------
+        dict
+            Dictionary containing detected artifacts
         """
-        self.raw.info['bads'].extend([ch for ch in bad_channels if ch not in self.raw.info['bads']])
-        self.logger.info(f"Marked channels as bad: {bad_channels}")
-        self.logger.info(f"Total bad channels: {self.raw.info['bads']}")
-        self.preprocessing_history.append(f"Marked bad channels: {bad_channels}")
-    
-    def interpolate_bad_channels(self) -> None:
-        """Interpolate bad channels using spherical splines."""
-        if not self.raw.info['bads']:
-            print("No bad channels to interpolate")
-            return
-        
+        artifacts = {'ecg_events': [], 'eog_events': []}
+
+        # Try to find ECG artifacts
         try:
-            self.raw.interpolate_bads(reset_bads=True)
-            print(f"Interpolated bad channels")
-            self.preprocessing_history.append("Interpolated bad channels")
+            ecg_epochs = create_ecg_epochs(self.raw, ch_name=ecg_channel, reject=None)
+            artifacts['ecg_events'] = ecg_epochs.events
+            print(f"Detected {len(ecg_epochs.events)} ECG events")
         except Exception as e:
-            print(f"Error interpolating bad channels: {str(e)}")
+            print(f"Could not detect ECG artifacts: {str(e)}")
 
-    def set_montage(self, montage):
+        # Try to find EOG artifacts
         try:
-            montage_obj = mne.channels.make_standard_montage(montage)
-            self.raw.set_montage(montage_obj, match_case=False, on_missing='warn')
-            self.logger.info(f"Set montage: {montage}")
-            self.preprocessing_history.append(f"Set montage: {montage}")
+            eog_epochs = create_eog_epochs(self.raw, ch_name=eog_channels, reject=None)
+            artifacts['eog_events'] = eog_epochs.events
+            print(f"Detected {len(eog_epochs.events)} EOG events")
         except Exception as e:
-            print(f"Error setting montage: {str(e)}")
+            print(f"Could not detect EOG artifacts: {str(e)}")
 
-    def fit_montage(self, montage: str = 'standard_1020', show_example=False) -> None:
-        """
-        Set electrode montage for spatial information.
-        
-        Parameters
-        ----------
-        montage : str, default='standard_1020'
-            Montage to use ('standard_1020', 'standard_1005', etc.)
-        show_example: bool, default=False
-            If a plot of the default montage should be created
-        """
-        # Montage
-        # print('\n Setting up montage for the eeg, using a standard montage from mne')
-        montage_name = montage
-        ## Show montage and get object
-        if show_example:
-            montage = show_example_montage(montage)
-        else:
-            montage = make_montage(montage_name)
-        ## Create electrode mapping
-        raw_orig_ch_names = self.raw.ch_names
-        montage_ch_names = montage.ch_names
-        mapping_dict, unmatched = create_electrode_mapping(montage_ch_names, raw_orig_ch_names)
-        self.logger.info('Creating channel name mapping to fit a montage')
-        self.logger.info(mapping_dict)
-        self.logger.info(f'Could not match channels: {unmatched}')
-        ## Rename channel names
-        self.rename_channels(mapping_dict)
-        ## Apply electrode
-        self.set_montage(montage_name)
-        ## Recategorize the channels
-        self.categorize_channels()
+        self.preprocessing_history.append("Performed automatic artifact detection")
+        return artifacts
 
-    def save_preprocessed(self, output_path: str, overwrite: bool = False, 
+    # saving and quitting
+    def save_preprocessed(self, output_path: str, overwrite: bool = False,
                          create_external_logfile: bool = True) -> None:
         """Save preprocessed data with logging.
 
@@ -751,22 +966,24 @@ class EEGPreprocessor:
             If the preprocessing summary should also be saved to a textfile
         """
         self.logger.info(f"Saving preprocessed data to {output_path}")
-        
+
         try:
             # Add preprocessing history to info
             self.raw.info['description'] = '; '.join(self.preprocessing_history)
-            
+
             # MNE will log saving details to the file
             self.raw.save(output_path, overwrite=overwrite, verbose=True)
-            
+
             self.logger.info(f"Successfully saved preprocessed data to: {output_path}")
             self.preprocessing_history.append(f"Saved to: {output_path}")
-            
+            self.report.add_raw(self.raw, title='final raw object that is saved')
+            self.report.save(f'{os.path.splitext(output_path)[0]}_report.html', overwrite=True)
+
             if create_external_logfile:
                 output_path_ending = os.path.splitext(output_path)[1]
                 logpath = output_path.replace(output_path_ending, '.log')
                 self.preprocessing_summary_to_logfile(logpath)
-                
+
         except Exception as e:
             self.logger.error(f"Error saving file: {str(e)}")
 
@@ -774,12 +991,12 @@ class EEGPreprocessor:
         """Close the MNE log file and clean up handlers."""
         # Close MNE logging
         mne.set_log_file(None)
-        
+
         # Close custom logger handlers
         for handler in self.logger.handlers[:]:
             handler.close()
             self.logger.removeHandler(handler)
-        
+
         self.logger.info("Logging session closed")
 
     def __del__(self):
@@ -792,7 +1009,7 @@ class EEGPreprocessor:
     def get_preprocessing_summary(self) -> str:
         """
         Get a summary of all preprocessing steps performed.
-        
+
         Returns
         -------
         str
@@ -836,21 +1053,6 @@ class EEGPreprocessor:
         except Exception as e:
             print(f"Error saving preprocessing summary: {str(e)}")
 
-    def rename_channels(self, mapping: Dict):
-        """
-        Rename EEG channels using a mapping dictionary.
-    
-        Parameters
-        ----------
-        mapping : dict
-            Dictionary containing the mapping of old channel names to new channel names
-        """
-        try:
-            self.raw.rename_channels(mapping)
-            self.preprocessing_history.append(f"Renamed channels using mapping")
-            print(f"Successfully renamed channels according to provided mapping")
-        except Exception as e:
-            print(f"Error renaming channels: {str(e)}")
 
 
 def example_preprocessing_pipeline(filepath: str, output_path: Optional[str] = None):

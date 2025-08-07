@@ -28,7 +28,7 @@ import numpy as np
 class PreprocessingPlotFrame(ttk.Frame):
     """Frame containing embedded EEG analysis plots."""
     
-    def __init__(self, parent, title="EEG Analysis", **kwargs):
+    def __init__(self, parent, title="EEG Analysis", preprocessing_frame=None, **kwargs):
         """
         Initialize the plot frame.
         
@@ -42,7 +42,9 @@ class PreprocessingPlotFrame(ttk.Frame):
         self.preprocessing_pipeline = None
         self.current_plot_type = None
         self.current_parameters = {}
-        
+        self.preprocessing_frame = preprocessing_frame
+        self.event_handlers_enabled = False  # Default to enabled
+
         # Create the UI
         self.setup_ui(title)
         
@@ -113,6 +115,20 @@ class PreprocessingPlotFrame(ttk.Frame):
         )
         self.plot_ica_sources_button.pack(side=tk.LEFT, padx=2)
         
+        # Separator for PSD range controls
+        separator2 = ttk.Separator(control_frame, orient='vertical')
+        separator2.pack(side=tk.LEFT, fill='y', padx=10)
+        
+        # Add checkbox for using artifact detection time range in PSD
+        self.use_artifact_range_var = tk.BooleanVar(value=False)
+        self.use_artifact_range_checkbox = ttk.Checkbutton(
+            control_frame,
+            text="Use Artifact Range for PSD",
+            variable=self.use_artifact_range_var,
+            command=self.on_artifact_range_toggle
+        )
+        self.use_artifact_range_checkbox.pack(side=tk.LEFT, padx=(0, 5))
+        
         # Create matplotlib frame
         self.create_matplotlib_frame()
     # Create matplotlibframe    
@@ -157,6 +173,11 @@ class PreprocessingPlotFrame(ttk.Frame):
         
         # Disconnect any existing connections first
         self.disconnect_event_handlers()
+        
+        # Only connect if event handlers are enabled
+        if not getattr(self, 'event_handlers_enabled', True):
+            print("Event handlers are disabled, skipping setup")
+            return
         
         # Connect events to the canvas
         self.event_connections = {}
@@ -400,6 +421,36 @@ class PreprocessingPlotFrame(ttk.Frame):
         self.plot_ica_sources_button.config(state=tk.NORMAL)
         self.refresh_initial_plot()
 
+    def get_artifact_range_values(self):
+        """
+        Get the start and stop values from the preprocessing frame.
+        
+        Returns:
+            tuple: (start_time, stop_time) or (None, None) if not available
+        """
+        if not self.preprocessing_frame:
+            return None, None
+            
+        try:
+            start_time = self.preprocessing_frame.ica_start_var.get()
+            stop_time = self.preprocessing_frame.ica_stop_var.get()
+            
+            # Convert to None if stop_time is 0 or empty (meaning use all data)
+            if stop_time == 0:
+                stop_time = None
+                
+            return start_time, stop_time
+            
+        except Exception as e:
+            print(f"Error getting artifact range values: {e}")
+            return None, None
+
+    def on_artifact_range_toggle(self):
+        """Handle changes to the artifact range checkbox."""
+        # Refresh the plot when the checkbox state changes
+        if self.current_plot_type == "psd":
+            self.refresh_plot()
+
     # Plotting
     def refresh_initial_plot(self):
         """Refresh the plot with current data."""
@@ -492,6 +543,21 @@ class PreprocessingPlotFrame(ttk.Frame):
         """
         try:
             if plot_type == "psd":
+                # Check if we should use artifact range for PSD
+                if self.use_artifact_range_var.get():
+                    start_time, stop_time = self.get_artifact_range_values()
+                    if start_time is not None:
+                        # Create a cropped version of the raw data for PSD calculation
+                        return self.preprocessing_pipeline.plot_power_spectral_density(
+                            picks=parameters.get('picks', None),
+                            fmin=parameters.get('fmin', 0.5),
+                            fmax=parameters.get('fmax', 70.0),
+                            title=parameters.get('title', f'Power Spectral Density ({start_time}s - {stop_time if stop_time else "end"}s)'),
+                            t_min=start_time,
+                            t_max=stop_time
+                        )
+                
+                # Default PSD plotting (full data)
                 return self.preprocessing_pipeline.plot_power_spectral_density(
                     picks=parameters.get('picks', None),
                     fmin=parameters.get('fmin', 0.5),
@@ -597,3 +663,17 @@ class PreprocessingPlotFrame(ttk.Frame):
                 return i, ax
 
         return None, None
+
+    def set_event_handlers_enabled(self, enabled: bool):
+        """
+        Enable or disable event handlers.
+        
+        Args:
+            enabled: True to enable event handlers, False to disable
+        """
+        self.event_handlers_enabled = enabled
+        
+        if enabled:
+            self.setup_event_handlers()
+        else:
+            self.disconnect_event_handlers()

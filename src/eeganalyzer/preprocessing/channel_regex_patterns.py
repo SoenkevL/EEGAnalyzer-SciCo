@@ -11,13 +11,13 @@ Date: 2025-06-19
 
 # Define regex patterns for different channel types
 DEFAULT_PATTERNS = {
+    'ECG': [
+        r'(?!.*EEG)(ECG|EKG|CARDIAC|HEART)',  # Heart channels (exclude if contains EEG)
+    ],
     'EOG': [
         r'(?!.*EEG)(EOG|EYE)',  # Eye movement channels (exclude if contains EEG)
         r'(?!.*EEG)[VH]EOG',  # Vertical/Horizontal EOG (exclude if contains EEG)
         r'(?!.*EEG)Eye',  # Any eye-related channel (exclude if contains EEG)
-    ],
-    'ECG': [
-        r'(?!.*EEG)(ECG|EKG|CARDIAC|HEART)',  # Heart channels (exclude if contains EEG)
     ],
     'EMG': [
         r'(?!.*EEG)(EMG|MUSCLE)',  # Muscle activity (exclude if contains EEG)
@@ -31,13 +31,13 @@ DEFAULT_PATTERNS = {
     'STIM': [
         r'(?!.*EEG)(TRIG|STI|EVENT|MARKER|Status)',  # Trigger channels (exclude if contains EEG)
     ],
+    'MISC': [
+        r'(?!.*EEG)(MISC|OTHER|AUX)',  # Miscellaneous (exclude if contains EEG)
+    ],
     'MEG': [
         r'(?!.*EEG)MEG\d+',  # MEG channels (exclude if contains EEG)
         r'(?!.*EEG)MAG\d+',  # Magnetometers (exclude if contains EEG)
         r'(?!.*EEG)GRAD\d+',  # Gradiometers (exclude if contains EEG)
-    ],
-    'MISC': [
-        r'(?!.*EEG)(MISC|OTHER|AUX)',  # Miscellaneous (exclude if contains EEG)
     ],
     'EEG': [
         r'(EEG|E)\d+',  # EEG channels with numbers
