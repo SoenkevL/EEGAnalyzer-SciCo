@@ -18,11 +18,10 @@ This module provides the Array_processor class for processing array data.
 
 import numpy as np
 import pandas as pd
-from typing import List, Dict, Tuple, Optional, Any, Union
+from typing import List, Dict, Tuple, Optional, Any, Union, Callable
 import os, sys
 import logging
 
-from eeganalyzer.utils.buttler import map_chaos_pipe_result_to_float
 class Array_processor:
     """
     This class provides a framework for processing array data, particularly for time-series analysis such as EEG data.
@@ -128,12 +127,6 @@ class Array_processor:
         Parameters:
             data (pd.DataFrame): EEG data to process.
         """
-        if not isinstance(data, pd.DataFrame):
-            logging.error("Data must be a pandas DataFrame.")
-            raise ValueError("Data must be a pandas DataFrame.")
-        if not isinstance(self.first_element_time, bool):
-            logging.error("First element time must be a boolean.")
-            raise ValueError("First element time must be a boolean.")
         if self.first_element_time:
             if self.axis_of_time == 0:
                 data = data.iloc[:, 1:]
@@ -203,7 +196,8 @@ class Array_processor:
             self.axis_of_time = 1
         logging.debug(f"Transposed data, first two rows:\n{self.data.head(2)}")
 
-    def initialize_metric_functions(self, name: str) -> Tuple[List[callable], bool]:
+    def initialize_metric_functions(self, name: str) -> Tuple[
+        List[Callable[[Union[np.ndarray, List[float]]], Dict[str, float]]], bool]:
         """
         Loads the metric functions, their names, and corresponding arguments from the Metrics module.
         
@@ -224,6 +218,8 @@ class Array_processor:
             logging.error("Metric set name must be a non-empty string.")
             raise ValueError("Metric set name must be a non-empty string.")
 
+        metrics_functions = []
+        channelwise = None
         try:
             metric_func_dict = self.select_metrics(name)
             metrics_functions = metric_func_dict.get('metric_funcs', None)
@@ -240,7 +236,8 @@ class Array_processor:
 
     @staticmethod
     def apply_metric_func(data: Union[np.ndarray, List[float]],
-                         metric_func: callable) -> Any:
+                          metric_func: Callable[[Union[np.ndarray, List[float]]], Dict[str, float]]) -> Dict[
+        str, float]:
         '''
         Applies a function to a timeseries (data channel).
         
@@ -258,11 +255,6 @@ class Array_processor:
         '''
         # Ensure data is one-dimensional
         logging.debug(f"Applying metric '{metric_func.__name__}' to data.")
-
-        # Ensure metric_func is callable
-        if not callable(metric_func):
-            logging.error("metric_func must be a callable function.")
-            raise TypeError("metric_func must be a callable function.")
 
         # Ensures EEG channel is saved as contiguous array in memory
         data = np.ascontiguousarray(data)
@@ -297,7 +289,7 @@ class Array_processor:
 
     ############################################ advanced functions ########################################################
 
-    def process_result_array(self, result_array: List[Any]) -> List[Tuple[str, Any]]:
+    def process_result_array(self, result_array: List[Dict[str, Any]]) -> Tuple[List[Tuple[str, Any]], List[str]]:
         '''
         Processes the results from calculated metrics and extracts relevant information for further use.
         
@@ -351,6 +343,7 @@ class Array_processor:
             TypeError: If data_frame is not a pd.DataFrame or np.ndarray.
         '''
         result_dict = {}
+        metrics_name_list = []
         columns = data_frame.columns if isinstance(data_frame, pd.DataFrame) else range(data_frame.shape[1])
         data_frame = data_frame.to_numpy() if isinstance(data_frame, pd.DataFrame) else data_frame
 
@@ -387,7 +380,8 @@ class Array_processor:
         logging.debug(f"Result dictionary created: {result_dict}.")
         return result_dict, metrics_name_list
 
-    def create_dataframe_from_result_dict(self, result_dict: Dict[Union[str, int], List[Tuple[str, Any]]], 
+    @staticmethod
+    def create_dataframe_from_result_dict(result_dict: Dict[Union[str, int], List[Tuple[str, Any]]], 
                                           metric_name_array: List[str],
                                           start_data_record: float, 
                                           duration: float, 
@@ -454,15 +448,6 @@ class Array_processor:
             ValueError: If metrics cannot be initialized, or processing any step fails.
             TypeError: If inputs are not of the expected type.
         '''
-        # Validate inputs
-        if not isinstance(dataframe, pd.DataFrame):
-            logging.error("dataframe must be a pandas DataFrame.")
-            raise TypeError("dataframe must be a pandas DataFrame.")
-        if not isinstance(annot_label, (str, int, float)):
-            logging.warning("annot_label must be a string, integer, or float.")
-            annot_label = '<missing>'
-
-
         try:
             # Initialize metrics to be calculated
             metrics_functions, channelwise = self.initialize_metric_functions(self.metric_name)
