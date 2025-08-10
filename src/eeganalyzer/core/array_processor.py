@@ -203,7 +203,7 @@ class Array_processor:
             self.axis_of_time = 1
         logging.debug(f"Transposed data, first two rows:\n{self.data.head(2)}")
 
-    def initialize_metric_functions(self, name: str) -> Tuple[List[callable], List[str], List[Dict[str, Any]], bool]:
+    def initialize_metric_functions(self, name: str) -> Tuple[List[callable], bool]:
         """
         Loads the metric functions, their names, and corresponding arguments from the Metrics module.
         
@@ -226,19 +226,9 @@ class Array_processor:
 
         try:
             metric_func_dict = self.select_metrics(name)
-            metrics_functions = metric_func_dict.get('metrics_functions', None)
-            metrics_name_list = metric_func_dict.get('metrics_name_list', None)
-            kwargs_list = metric_func_dict.get('kwargs_list', None)
+            metrics_functions = metric_func_dict.get('metric_funcs', None)
             channelwise = metric_func_dict.get('channelwise', True)
 
-            if not isinstance(metrics_functions, list) or not isinstance(metrics_name_list, list) or not isinstance(
-                    kwargs_list, list):
-                logging.error("Output of Metrics.select_metrics must be three lists.")
-                raise TypeError("Output of Metrics.select_metrics must be three lists.")
-
-            if not metrics_functions or not metrics_name_list or not kwargs_list:
-                logging.error("No metrics found for the name: %s", name)
-                raise ValueError(f"No metrics found for the name: {name}")
         except ValueError as ve:
             logging.error('metric functions need to return a dictionary containing:'
                           'metrics_functions, metrics_name_list, kwargs_list, channelwise')
@@ -246,12 +236,11 @@ class Array_processor:
             logging.error("Error occurred while retrieving metrics for '%s': %s", name, str(e))
             raise ValueError(f"An error occurred while retrieving metrics for '{name}': {e}")
 
-        return metrics_functions, metrics_name_list, kwargs_list, channelwise
+        return metrics_functions, channelwise
 
     @staticmethod
     def apply_metric_func(data: Union[np.ndarray, List[float]],
-                         metric_func: callable, 
-                         kwargs: Optional[Dict[str, Any]]) -> Any:
+                         metric_func: callable) -> Any:
         '''
         Applies a function to a timeseries (data channel).
         
@@ -269,48 +258,24 @@ class Array_processor:
         '''
         # Ensure data is one-dimensional
         logging.debug(f"Applying metric '{metric_func.__name__}' to data.")
-        if not isinstance(data, (np.ndarray, list)) or len(np.shape(data)) != 1:
-            #TODO: remove this constraint and make it selectable
-            logging.error("Data must be a one-dimensional time series.")
-            raise ValueError("Data must be a one-dimensional time series.")
 
         # Ensure metric_func is callable
         if not callable(metric_func):
             logging.error("metric_func must be a callable function.")
             raise TypeError("metric_func must be a callable function.")
 
-        # Ensure kwargs is either None or a dictionary
-        if kwargs is not None and not isinstance(kwargs, dict):
-            logging.error("kwargs must be a dictionary or None.")
-            raise TypeError("kwargs must be a dictionary or None.")
-
         # Ensures EEG channel is saved as contiguous array in memory
         data = np.ascontiguousarray(data)
 
-        # Try applying the metric function with the given arguments
-        if kwargs:
-            try:
-                # Try applying kwargs as keyword arguments
-                return metric_func(data, **kwargs)
-            except TypeError as e:
-                # If kwargs are not accepted, use kwarg values as an arg list instead
-                logging.warning(f"TypeError occurred: {e}. Retrying with positional arguments.")
-                return metric_func(data, *list(kwargs.values()))
-            except Exception as e:
-                # Catch any unexpected exceptions and handle gracefully
-                logging.error(f"Could not apply metric '{metric_func.__name__}' to data. Exception: {e}")
-                return None
-        else:
-            # If no kwargs are provided, calculate with default parameters
-            try:
-                return metric_func(data)
-            except Exception as e:
-                # Catch and log exceptions during default metric calculation
-                logging.error(f"Could not apply metric '{metric_func.__name__}'"
-                              f" to data with default parameters. Exception: {e}")
-                return None
+        try:
+            return metric_func(data)
+        except Exception as e:
+            # Catch and log exceptions during default metric calculation
+            logging.error(f"Could not apply metric '{metric_func.__name__}'"
+                          f" to data with default parameters. Exception: {e}")
+            return None
 
-    def create_result_array(self, eeg_np_array, metrics_func_list: list, kwargs_list: list[dict]) -> list:
+    def create_result_array(self, eeg_np_array, metrics_func_list: list) -> list:
         '''
         Creates a list of computed metric results for the provided EEG data.
         
@@ -326,13 +291,13 @@ class Array_processor:
         - ValueError: If the input arguments are not structured as expected or contain invalid values.
         '''
         logging.debug(f"Creating result array for EEG data with shape {eeg_np_array.shape}.")
-        return [self.apply_metric_func(eeg_np_array, metric_func, kwargs)
-                for metric_func, kwargs in zip(metrics_func_list, kwargs_list)]
+        return [self.apply_metric_func(eeg_np_array, metric_func)
+                for metric_func in metrics_func_list]
 
 
     ############################################ advanced functions ########################################################
 
-    def process_result_array(self, result_array: List[Any], metric_name_array: List[str]) -> List[Tuple[str, Any]]:
+    def process_result_array(self, result_array: List[Any]) -> List[Tuple[str, Any]]:
         '''
         Processes the results from calculated metrics and extracts relevant information for further use.
         
@@ -347,52 +312,26 @@ class Array_processor:
         Raises:
         - ValueError: If metric_name_array and result_array lengths do not match.
         '''
-        if not isinstance(result_array, list):
-            logging.error("result_array must be a list.")
-            raise TypeError("result_array must be a list.")
-        if not isinstance(metric_name_array, list):
-            logging.error("metric_name_array must be a list.")
-            raise TypeError("metric_name_array must be a list.")
-        if len(result_array) != len(metric_name_array):
-            logging.error("result_array and metric_name_array must have the same length.")
-            raise ValueError("result_array and metric_name_array must have the same length.")
-
         # Initialize processed array
         processed_array = []
-        for result in result_array:
-            result_type = type(result)
+        metric_name_list = []
+        for result_dict in result_array:
+            result_type = type(result_dict)
             try:
-                if result_type in (list, tuple):
-                    if len(result) > 0:
-                        processed_array.append(result[0])
-                    else:
-                        processed_array.append(None)
-                elif result_type == dict:
-                    for key, value in result.items():
-                        if key == 'result':
-                            value = map_chaos_pipe_result_to_float(value)
-                        processed_array.append(value)
-                else:
-                    processed_array.append(result)  # Handle other result types directly
+                if result_type == dict:
+                    for key, value in result_dict.items():
+                        processed_array.append((key, value))
+                        metric_name_list.append(key)
             except Exception as e:
-                logging.error(f"Error processing result: {result}. Exception: {e}")
+                logging.error(f"Error processing result: {result_dict}. Exception: {e}")
                 processed_array.append(None)
 
-        # Create tuples with names
-        try:
-            for i, (name, value) in enumerate(zip(metric_name_array, processed_array)):
-                processed_array[i] = (name, value)
-        except Exception as e:
-            logging.error("Error occurred while pairing metric names with results.")
-            raise RuntimeError("Error occurred while pairing metric names with results.") from e
+        return processed_array, metric_name_list
 
-        return processed_array
-
-    def create_result_dict_from_eeg_frame(self, data_frame: Union[pd.DataFrame, np.ndarray], 
+    def create_result_dict_from_eeg_frame(self, data_frame: Union[pd.DataFrame, np.ndarray],
                                           metrics_func_list: List[callable],
-                                          metrics_name_list: List[str], 
-                                          kwargs_list: List[Dict[str, Any]],
-                                          channelwise) -> Tuple[Dict[Union[str, int], List[Tuple[str, Any]]], List[str]]:
+                                          channelwise: bool) -> Tuple[Dict[Union[str, int], List[Tuple[str, Any]]], List[str]]:
+
 
         '''
         Creates a dictionary of computed metrics for EEG data.
@@ -400,8 +339,6 @@ class Array_processor:
         Parameters:
             data_frame (pd.DataFrame or np.ndarray): EEG data frame or numpy array where rows or columns represent time series.
             metrics_func_list (list): List of callable metric functions to be applied to the EEG data.
-            metrics_name_list (list[str]): List of names corresponding to the metric functions.
-            kwargs_list (list[dict]): List of dictionaries containing additional arguments for the metric functions.
             channelwise (bool): If True, computes metrics for each time series individually; otherwise computes on the full data frame.
         
         Returns:
@@ -413,17 +350,6 @@ class Array_processor:
             ValueError: If metrics_func_list, metrics_name_list, or kwargs_list are not lists, or if their lengths do not match.
             TypeError: If data_frame is not a pd.DataFrame or np.ndarray.
         '''
-        if not isinstance(metrics_func_list, list) or not isinstance(metrics_name_list, list) or not isinstance(kwargs_list,
-                                                                                                                list):
-            logging.error("metrics_func_list, metrics_name_list, and kwargs_list must all be lists.")
-            raise ValueError("metrics_func_list, metrics_name_list, and kwargs_list must all be lists.")
-        if len(metrics_func_list) != len(metrics_name_list) or len(metrics_func_list) != len(kwargs_list):
-            logging.error("metrics_func_list, metrics_name_list, and kwargs_list must have the same length.")
-            raise ValueError("metrics_func_list, metrics_name_list, and kwargs_list must have the same length.")
-        if not isinstance(data_frame, (pd.DataFrame, np.ndarray)):
-            logging.error("data_frame must be a pandas DataFrame or a numpy array.")
-            raise TypeError("data_frame must be a pandas DataFrame or a numpy array.")
-
         result_dict = {}
         columns = data_frame.columns if isinstance(data_frame, pd.DataFrame) else range(data_frame.shape[1])
         data_frame = data_frame.to_numpy() if isinstance(data_frame, pd.DataFrame) else data_frame
@@ -433,8 +359,8 @@ class Array_processor:
                 for col, colname in zip(range(data_frame.shape[1]), columns):
                     try:
                         temp_data = data_frame[:, col]
-                        raw_result_array = self.create_result_array(temp_data, metrics_func_list, kwargs_list)
-                        processed_result_array = self.process_result_array(raw_result_array, metrics_name_list)
+                        raw_result_array = self.create_result_array(temp_data, metrics_func_list)
+                        processed_result_array, metrics_name_list = self.process_result_array(raw_result_array)
                         result_dict[colname] = processed_result_array
                     except Exception as e:
                         logging.error(f"Error processing column {colname}: {e}")
@@ -443,22 +369,22 @@ class Array_processor:
                 for row in range(data_frame.shape[0]):
                     try:
                         temp_data = data_frame[row, :]
-                        raw_result_array = self.create_result_array(temp_data, metrics_func_list, kwargs_list)
-                        processed_result_array = self.process_result_array(raw_result_array, metrics_name_list)
+                        raw_result_array = self.create_result_array(temp_data, metrics_func_list)
+                        processed_result_array, metrics_name_list = self.process_result_array(raw_result_array)
                         result_dict[row] = processed_result_array
                     except Exception as e:
                         logging.error(f"Error processing row {row}: {e}")
                         result_dict[row] = None
         else:
             try:
-                raw_result_array = self.create_result_array(self.data, metrics_func_list, kwargs_list)
-                processed_result_array = self.process_result_array(raw_result_array, metrics_name_list)
+                raw_result_array = self.create_result_array(self.data, metrics_func_list)
+                processed_result_array, metrics_name_list = self.process_result_array(raw_result_array)
                 result_dict = {column: processed_result_array for column in range(self.data.shape[1])}
             except Exception as e:
                 logging.error(f"Error processing entire data frame: {e}")
                 result_dict = {}
 
-        logging.debug(f"Result dictionary created: {result_dict} for metrics {metrics_name_list}.")
+        logging.debug(f"Result dictionary created: {result_dict}.")
         return result_dict, metrics_name_list
 
     def create_dataframe_from_result_dict(self, result_dict: Dict[Union[str, int], List[Tuple[str, Any]]], 
@@ -485,22 +411,6 @@ class Array_processor:
             ValueError: If the result_dict or metric_name_array are invalid.
             TypeError: If input arguments are not of expected types.
         '''
-        if not isinstance(result_dict, dict):
-            logging.error("result_dict must be a dictionary.")
-            raise TypeError("result_dict must be a dictionary.")
-        if not isinstance(metric_name_array, list) or not all(isinstance(item, str) for item in metric_name_array):
-            logging.error("metric_name_array must be a list of strings.")
-            raise TypeError("metric_name_array must be a list of strings.")
-        if not isinstance(start_data_record, (int, float)) or start_data_record < 0:
-            logging.error("start_data_record must be a non-negative number.")
-            raise ValueError("start_data_record must be a non-negative number.")
-        if not isinstance(duration, (int, float)) or duration <= 0:
-            logging.error("duration must be a positive number.")
-            raise ValueError("duration must be a positive number.")
-        if not isinstance(label, (str, int, float)):
-            label = '<missing>'
-            logging.warning('no label was provided, using <missing> instead.')
-        # Create multi-index based on metric, label, startDataRecord, and duration
         index = pd.MultiIndex.from_product([[label], [start_data_record], [duration], metric_name_array],
                                            names=['label', 'startDataRecord', 'duration', 'metric'])
         eeg_column_names = list(result_dict.keys())
@@ -513,9 +423,6 @@ class Array_processor:
         # Populate the DataFrame with metric results
         logging.debug(f"Populating DataFrame with results for metrics {metric_name_array}.")
         for column, result_array in result_dict.items():
-            if not isinstance(result_array, list):
-                logging.error(f"Values in result_dict must be lists, but got {type(result_array)} for column '{column}'.")
-                raise TypeError(f"Values in result_dict must be lists, but got {type(result_array)} for column '{column}'.")
             for result_tuple in result_array:
                 if not isinstance(result_tuple, tuple) or len(result_tuple) != 2:
                     logging.error("Each element in result_array must be a tuple of (metric_name, result).")
@@ -558,13 +465,12 @@ class Array_processor:
 
         try:
             # Initialize metrics to be calculated
-            metrics_functions, metrics_name_list, kwargs_list, channelwise = self.initialize_metric_functions(self.metric_name)
+            metrics_functions, channelwise = self.initialize_metric_functions(self.metric_name)
 
             # Calculate the results for the metrics and store them in a dictionary
             result_dict, metrics_name_list = self.create_result_dict_from_eeg_frame(
-                dataframe, metrics_functions, metrics_name_list, kwargs_list, channelwise
+                dataframe, metrics_functions, channelwise
             )
-
             # Create the sub-results dataframe from the results dictionary
             sub_results_frame = self.create_dataframe_from_result_dict(
                 result_dict, metrics_name_list, annot_startDataRecord, annot_duration, annot_label
