@@ -203,7 +203,7 @@ class Array_processor:
             self.axis_of_time = 1
         logging.debug(f"Transposed data, first two rows:\n{self.data.head(2)}")
 
-    def initialize_metric_functions(self, name: str) -> Tuple[List[callable], List[str], List[Dict[str, Any]]]:
+    def initialize_metric_functions(self, name: str) -> Tuple[List[callable], List[str], List[Dict[str, Any]], bool]:
         """
         Loads the metric functions, their names, and corresponding arguments from the Metrics module.
         
@@ -225,7 +225,11 @@ class Array_processor:
             raise ValueError("Metric set name must be a non-empty string.")
 
         try:
-            metrics_functions, metrics_name_list, kwargs_list = self.select_metrics(name)
+            metric_func_dict = self.select_metrics(name)
+            metrics_functions = metric_func_dict.get('metrics_functions', None)
+            metrics_name_list = metric_func_dict.get('metrics_name_list', None)
+            kwargs_list = metric_func_dict.get('kwargs_list', None)
+            channelwise = metric_func_dict.get('channelwise', True)
 
             if not isinstance(metrics_functions, list) or not isinstance(metrics_name_list, list) or not isinstance(
                     kwargs_list, list):
@@ -235,12 +239,14 @@ class Array_processor:
             if not metrics_functions or not metrics_name_list or not kwargs_list:
                 logging.error("No metrics found for the name: %s", name)
                 raise ValueError(f"No metrics found for the name: {name}")
-
+        except ValueError as ve:
+            logging.error('metric functions need to return a dictionary containing:'
+                          'metrics_functions, metrics_name_list, kwargs_list, channelwise')
         except Exception as e:
             logging.error("Error occurred while retrieving metrics for '%s': %s", name, str(e))
             raise ValueError(f"An error occurred while retrieving metrics for '{name}': {e}")
 
-        return metrics_functions, metrics_name_list, kwargs_list
+        return metrics_functions, metrics_name_list, kwargs_list, channelwise
 
     @staticmethod
     def apply_metric_func(data: Union[np.ndarray, List[float]],
@@ -386,7 +392,7 @@ class Array_processor:
                                           metrics_func_list: List[callable],
                                           metrics_name_list: List[str], 
                                           kwargs_list: List[Dict[str, Any]],
-                                          channelwise: bool = True) -> Tuple[Dict[Union[str, int], List[Tuple[str, Any]]], List[str]]:
+                                          channelwise) -> Tuple[Dict[Union[str, int], List[Tuple[str, Any]]], List[str]]:
 
         '''
         Creates a dictionary of computed metrics for EEG data.
@@ -552,11 +558,11 @@ class Array_processor:
 
         try:
             # Initialize metrics to be calculated
-            metrics_functions, metrics_name_list, kwargs_list = self.initialize_metric_functions(self.metric_name)
+            metrics_functions, metrics_name_list, kwargs_list, channelwise = self.initialize_metric_functions(self.metric_name)
 
             # Calculate the results for the metrics and store them in a dictionary
             result_dict, metrics_name_list = self.create_result_dict_from_eeg_frame(
-                dataframe, metrics_functions, metrics_name_list, kwargs_list
+                dataframe, metrics_functions, metrics_name_list, kwargs_list, channelwise
             )
 
             # Create the sub-results dataframe from the results dictionary

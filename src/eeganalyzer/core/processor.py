@@ -268,7 +268,9 @@ class Processor:
                     # Create DataFrame of valid files to process (also adds the eegs to the database)
                     files_df = self.get_files_dataframe()
 
-
+                    if len(files_df) == 0:
+                        logging.warning('No valid files found for processing.')
+                        return None
                     n_chunks = max(len(files_df) // self.num_processes, 1)
                     num_processes = min(n_chunks, self.num_processes)
                     files_df.apply_parallel(
@@ -287,3 +289,4 @@ class Processor:
         logging.info(f"\n{'*' * 50}")
         logging.info(f"All processing complete. Results stored in database: {self.current_experiment['sqlite_path']}")
         logging.info(f"{'*' * 50}\n")
+        return None

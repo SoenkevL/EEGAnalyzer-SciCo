@@ -125,27 +125,23 @@ class EEGPreprocessor:
 
 
             # There is a problem with the annotations in the edf files so we need to update them from custom matlab files
-            self._add_custom_annot()
             self.logger.info('Updated annotations from .mat files')
 
             self.preprocessing_history.append(f"Loaded data from {self.filepath}")
+            try:
+                self.find_ecg_epochs(show=False)
+                self.find_eog_epochs(show=False)
+                self.logger.info('Found ECG and EOG epochs')
+                self.preprocessing_history.append('Found ECG and EOG epochs')
+            except Exception as e:
+                self.logger.warning(f"Failed to find ECG and EOG epochs from {self.filepath}: {e}")
+                self.ecg_evoked = None
+                self.eog_evoked = None
             self.report.add_raw(self.raw, title=f'Initial Raw Data')
             
         except Exception as e:
             self.logger.error(f"Failed to load data from {self.filepath}: {str(e)}")
             raise ValueError(f"Failed to load data from {self.filepath}: {str(e)}")
-
-    def _add_custom_annot(self):
-        """
-        Custom function to deal with the EIRatio annotations to load from the matlab files from my master
-        Returns:
-            None
-        """
-        annot_path = self.filepath.replace('original.edf', 'annot-sz.mat')
-        if os.path.splitext(annot_path)[1] == '.mat':
-            update_annotations_suzanne(self.raw, annot_path, self.filepath, method='replace', recompute=False)
-        else:
-            print('no annotations found, continuing without custom annotation loading')
 
     # categorize channels and apply montages
     def categorize_channels_orig(self, mark_unclassified_as_bad = False,
@@ -236,7 +232,7 @@ class EEGPreprocessor:
         except Exception as e:
             print(f"Error renaming channels: {str(e)}")
 
-    def fit_montage(self, montage: str = 'standard_1020', show_example=False) -> None:
+    def fit_montage(self, montage: str = 'standard_1020', show_example=False, overwrite=False) -> None:
         """
         Set electrode montage for spatial information.
 
@@ -598,7 +594,7 @@ class EEGPreprocessor:
             print(f"Error interpolating bad channels: {str(e)}")
 
     # filtering and resampling
-    def apply_filter(self, l_freq: Optional[float] = 0.5, h_freq: Optional[float] = 40.0,
+    def apply_filter(self, l_freq: Optional[float] = None, h_freq: Optional[float] = None,
                      picks: Optional[Union[str, List[str]]] = None) -> None:
         """Apply bandpass filter with detailed logging."""
         filter_info = f"l_freq={l_freq}, h_freq={h_freq}, picks={picks}"
@@ -734,7 +730,7 @@ class EEGPreprocessor:
             return None
 
     def plot_power_spectral_density(self, picks: Optional[Union[str, List[str]]] = None,
-                                    fmin: float = 0.5, fmax: float = 50.0,
+                                    fmin: float = None, fmax: float = None,
                                     t_min: int = None, t_max: int = None,
                                     title: Optional[str] = None,
                                     show=False) -> plt.figure:
@@ -761,6 +757,11 @@ class EEGPreprocessor:
             picks = self.channel_categories.get('EEG', [])
             if not picks:
                 picks = 'all'
+
+        if fmin is None:
+            fmin = max(self.raw.info['lowpass']-1, 0)
+        if fmax is None:
+            fmax = self.raw.info['highpass']+5
         
         try:
             psd_fig = self.raw.plot_psd(

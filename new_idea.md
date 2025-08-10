@@ -2,7 +2,9 @@
 
 ## Preprocessing
 - keeping track of raw versions temporarily during the processing, optional
-- creating a doc automatically that saves all created raw versions and figures suing the Report functionality
+- make a show info dialog field
+- rework the preprocessing to handle good files better (too focused on the file I tested with)
+- script running from within the GUI to handle things like channel renaming etc as general solutions tend to be too specific
 
 ## Metric analysis
 - multichannel metric calculation (I think I have it included somehow but was not optimal yet)
