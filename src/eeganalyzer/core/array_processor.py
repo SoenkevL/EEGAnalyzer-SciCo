@@ -355,6 +355,9 @@ class Array_processor:
                         raw_result_array = self.create_result_array(temp_data, metrics_func_list)
                         processed_result_array, metrics_name_list = self.process_result_array(raw_result_array)
                         result_dict[colname] = processed_result_array
+                    except TypeError as te:
+                        logging.error(f"Error processing column {colname} due to a type error. Please double check that all names for metric"
+                                      f"processing are correct: \n {te} ")
                     except Exception as e:
                         logging.error(f"Error processing column {colname}: {e}")
                         result_dict[colname] = None
