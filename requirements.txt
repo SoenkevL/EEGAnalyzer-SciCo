@@ -16,6 +16,7 @@ matplotlib>=3.10.0
 # Configuration & Data Handling
 PyYAML>=6.0.2
 mat4py>=0.6.0
+dotenv>=0.9.9
 
 # Database
 SQLAlchemy>=2.0.40

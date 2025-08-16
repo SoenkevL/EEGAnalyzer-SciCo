@@ -22,6 +22,7 @@ from typing import Dict, List, Optional, Union, Any
 import pandas as pd
 from datetime import datetime
 from multiprocesspandas import applyparallel
+import swifter
 from sqlalchemy.orm import Mapped
 import logging
 from eeganalyzer.utils.LoggingConfiguration import setup_logging
@@ -32,7 +33,7 @@ from eeganalyzer.utils.database import Alchemist
 
 class Processor:
     
-    def __init__(self, config, log_file=None) -> None:
+    def __init__(self, config, log_file=None, max_processors_used=1) -> None:
         # Initialize logging
         #TODO: change this up to use .env file
         setup_logging(log_level=config.get('log_level', logging.INFO),
@@ -43,7 +44,7 @@ class Processor:
         self.session = None
         self.config = config
         self.log_file = log_file
-        self.num_processes = 1
+        self.num_processes = max_processors_used
         self.current_eeg_processor = None
         self.current_csv_processor = None
         self.current_experiment = None
@@ -258,9 +259,9 @@ class Processor:
 
                     logging.info(
                         f'{"#" * 20}'
-                        f' Running experiment "{self.current_experiment['name']}"'
-                        f' and run "{self.current_run['name']}"'
-                        f' on folder "{self.current_experiment['bids_folder']}"'
+                        f' Running experiment "{self.current_experiment["name"]}"'
+                        f' and run "{self.current_run["name"]}"'
+                        f' on folder "{self.current_experiment["bids_folder"]}"'
                         f' {"#" * 20}\n')
 
                     self.current_experiment_entry = self.add_or_update_experiment()
@@ -271,16 +272,13 @@ class Processor:
                     if len(files_df) == 0:
                         logging.warning('No valid files found for processing.')
                         return None
-                    n_chunks = max(len(files_df) // self.num_processes, 1)
-                    num_processes = min(n_chunks, self.num_processes)
-                    files_df.apply_parallel(
-                        self.process_file,
-                        experiment=self.current_experiment,
-                        run=self.current_run,
-                        axis=0,
-                        num_processes=num_processes,
-                        n_chunks=n_chunks,
-                    )
+                    # n_chunks = max(len(files_df) // self.num_processes, 1)
+                    # num_processes = min(n_chunks, self.num_processes)
+                    # files_df.apply_parallel(self.process_file, experiment=self.current_experiment, run=self.current_run,
+                    #                         axis=0, num_processes=num_processes, n_chunks=n_chunks)
+                    files_df.apply_parallel(self.process_file, experiment=self.current_experiment, run=self.current_run,
+                                            axis=0, num_processes=self.num_processes)
+                    # files_df.swifter.apply(self.process_file, experiment=self.current_experiment, run=self.current_run, axis=1)
 
                     # Add the computed result frames to the database by iterating over the eegs of the experiment
                     self.populate_data_tables(self.current_experiment_entry)
