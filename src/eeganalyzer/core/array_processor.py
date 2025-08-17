@@ -524,6 +524,7 @@ class Array_processor:
             t_stop_samples = int((t_onset + duration) * self.sfreq)  # Calculate end sample index
 
             # Extract the EEG dataframe for this epoch
+            #TODO: create a full dataframe [(t_start, t_stop, task), [[eeg_data]]]
             eeg_dataframe = self.data.iloc[t_onset_samples:t_stop_samples, :]
 
             # Calculate metrics for the current epoch
