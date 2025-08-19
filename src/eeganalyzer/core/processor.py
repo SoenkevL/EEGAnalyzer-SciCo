@@ -22,7 +22,6 @@ from typing import Dict, List, Optional, Union, Any
 import pandas as pd
 from datetime import datetime
 from multiprocesspandas import applyparallel
-import swifter
 from sqlalchemy.orm import Mapped
 import logging
 from eeganalyzer.utils.LoggingConfiguration import setup_logging
@@ -276,8 +275,8 @@ class Processor:
                     # num_processes = min(n_chunks, self.num_processes)
                     # files_df.apply_parallel(self.process_file, experiment=self.current_experiment, run=self.current_run,
                     #                         axis=0, num_processes=num_processes, n_chunks=n_chunks)
-                    files_df.apply_parallel(self.process_file, experiment=self.current_experiment, run=self.current_run,
-                                            axis=0, num_processes=self.num_processes)
+                    files_df.apply(self.process_file, experiment=self.current_experiment, run=self.current_run,
+                                            axis=1)
                     # files_df.swifter.apply(self.process_file, experiment=self.current_experiment, run=self.current_run, axis=1)
 
                     # Add the computed result frames to the database by iterating over the eegs of the experiment
