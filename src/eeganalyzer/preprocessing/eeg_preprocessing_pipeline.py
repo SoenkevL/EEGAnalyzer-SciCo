@@ -872,6 +872,7 @@ class EEGPreprocessor:
     def run_ica_fitting(self, start, duration, find_ecg_sources=True, find_eog_sources=True, find_emg_sources=True):
         # Fit ICA
         print("\n9. Fitting ICA...")
+        #TODO: something is not working here when I try to run it on the bdf files from the Mystical entropy project
         psd_fig_target_region = self.plot_power_spectral_density(t_max=start+duration, t_min=start, title='Ica fitting region PSD')
         self.report.add_figure(psd_fig_target_region, title=f'PSD of the ica fitting region ({start} - {start+duration}')
         ica_channels = [self.channel_categories.get(category, []) for category in ['EEG', 'EMG', 'ECG', 'EOG']]
