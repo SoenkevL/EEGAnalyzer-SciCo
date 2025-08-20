@@ -97,11 +97,10 @@ class Processor:
 
     def add_or_update_experiment(self, experiment: Dict[str, Any]=None, run: Dict[str, Any]=None) -> Any:
         experiment = experiment if experiment else self.current_experiment
-        run = run if run else self.current_run
         experiment_entry = Alchemist.add_or_update_experiment(
                 self.session,
                 metric_set_name=metrics.METRIC_NAME,
-                run_name=run['name'],
+                run_name=experiment['name'],
                 fs=pipeline_preprocessing.SFREQ,
                 start=experiment['epoching']['start_time'],
                 stop=experiment['epoching']['stop_time'],
@@ -132,7 +131,8 @@ class Processor:
         bids_folder = self.current_experiment['bids_folder']
         infile_ending = self.current_experiment['input_file_ending']
         outfile_ending = self.current_experiment['outfile_ending']
-        folder_extensions = self.current_run['metrics_prefix']
+        folder_extensions = '/'+'/'.join(
+            [self.current_experiment.get('preprocessing_name'), self.current_experiment.get('metric_name')])
         """
         Creates a DataFrame containing valid file paths, their corresponding output paths,
         and the processed status (whether the output file already exists).
@@ -193,8 +193,7 @@ class Processor:
         Args:
             row (pd.Series): A row from the DataFrame containing file information.
         """
-        processing_config = {'metric_path': experiment['metric_path'],
-                             'annotations': experiment['annotations_of_interest'],
+        processing_config = {'annotations': experiment['annotations_of_interest'],
                              'outpath': row['outpath'],
                              'start_time': experiment['epoching']['start_time'],
                              'stop_time': experiment['epoching']['stop_time'],
@@ -236,41 +235,34 @@ class Processor:
             with Alchemist.make_session(engine) as session:
                 self.session = session
                 # Extract experiment-level configuration
-                #
                 # add or update dataset in sqlite database
                 self.current_dataset_id = self.add_or_update_dataset()
                 logging.info(f"Using dataset ID: {self.current_dataset_id}")
 
-                # Iterate through runs for each experiment
-                for run in experiment['runs']:
-                    self.current_run = run
-                    # Extract run-level configuration
+                logging.info(
+                    f'{"#" * 20}'
+                    f' Running experiment "{self.current_experiment["name"]}"'
+                    f' on folder "{self.current_experiment["bids_folder"]}"'
+                    f' {"#" * 20}\n')
 
-                    logging.info(
-                        f'{"#" * 20}'
-                        f' Running experiment "{self.current_experiment["name"]}"'
-                        f' and run "{self.current_run["name"]}"'
-                        f' on folder "{self.current_experiment["bids_folder"]}"'
-                        f' {"#" * 20}\n')
+                self.current_experiment_entry = self.add_or_update_experiment()
+                # create first experiment, then files df and add experiment to each eeg
+                # Create DataFrame of valid files to process (also adds the eegs to the database)
+                files_df = self.get_files_dataframe()
 
-                    self.current_experiment_entry = self.add_or_update_experiment()
-                    # create first experiment, then files df and add experiment to each eeg
-                    # Create DataFrame of valid files to process (also adds the eegs to the database)
-                    files_df = self.get_files_dataframe()
+                if len(files_df) == 0:
+                    logging.warning('No valid files found for processing.')
+                    return None
+                # n_chunks = max(len(files_df) // self.num_processes, 1)
+                # num_processes = min(n_chunks, self.num_processes)
+                # files_df.apply_parallel(self.process_file, experiment=self.current_experiment, run=self.current_run,
+                #                         axis=0, num_processes=num_processes, n_chunks=n_chunks)
+                files_df.apply(self.process_file, experiment=self.current_experiment, run=self.current_run,
+                                        axis=1)
+                # files_df.swifter.apply(self.process_file, experiment=self.current_experiment, run=self.current_run, axis=1)
 
-                    if len(files_df) == 0:
-                        logging.warning('No valid files found for processing.')
-                        return None
-                    # n_chunks = max(len(files_df) // self.num_processes, 1)
-                    # num_processes = min(n_chunks, self.num_processes)
-                    # files_df.apply_parallel(self.process_file, experiment=self.current_experiment, run=self.current_run,
-                    #                         axis=0, num_processes=num_processes, n_chunks=n_chunks)
-                    files_df.apply(self.process_file, experiment=self.current_experiment, run=self.current_run,
-                                            axis=1)
-                    # files_df.swifter.apply(self.process_file, experiment=self.current_experiment, run=self.current_run, axis=1)
-
-                    # Add the computed result frames to the database by iterating over the eegs of the experiment
-                    self.populate_data_tables(self.current_experiment_entry)
+                # Add the computed result frames to the database by iterating over the eegs of the experiment
+                self.populate_data_tables(self.current_experiment_entry)
 
         # Print a final message indicating completion
         logging.info(f"\n{'*' * 50}")
