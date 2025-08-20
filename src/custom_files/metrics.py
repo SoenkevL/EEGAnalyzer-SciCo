@@ -25,13 +25,15 @@ Please feel free to use this file as a template for your own metrics.
 import edgeofpy as eop
 import neurokit2 as nk
 import numpy as np
+import logging
+logger = logging.getLogger(f"{__name__}")
 
 PER_CHANNEL = True
-METRIC_NAME = 'lzc_only'
 
 ####mandatory function to choose a metric set in the pipeline####
-def calculate(data, name=METRIC_NAME):
+def calculate(data, name, **kwargs):
     if name =='lzc_only':
+        logger.debug(f'Calculating lzc for data')
         return lzc_adapted(data)
     return None
 
