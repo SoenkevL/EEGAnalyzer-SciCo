@@ -24,14 +24,20 @@ import numpy as np
 import pandas as pd
 import logging
 from eeganalyzer.utils.buttler import check_outfile_name, find_task_from_filename
+from custom_files import metrics, pipeline_preprocessing
+from parallel_pandas import ParallelPandas
+import neurokit2 as nk
+
+#initialize parallel-pandas
+ParallelPandas.initialize(disable_pr_bar=True, show_vmem=False)
 
 #### general methods ####
+
 def apply_metric_func(data: Union[np.ndarray, List[float]],
                       metric_func: Callable[[Union[np.ndarray, List[float]]], Dict[str, float]]) -> Dict[str, float]:
     logging.debug(f"Applying metric '{metric_func.__name__}' to data.")
 
     # Ensures EEG channel is saved as contiguous array in memory
-    name = data.name
     data = np.ascontiguousarray(data)
     try:
         result_dict = metric_func(data)
@@ -43,17 +49,12 @@ def apply_metric_func(data: Union[np.ndarray, List[float]],
     result_series = pd.Series(data=result_dict)
     return result_series
 
-def apply_preprocessing_function(eeg: mne.io.Raw,
-                                 preprocessing_func: Callable[[mne.io.Raw], mne.io.Raw]) -> mne.io.Raw:
-    logging.info(f"Applying preprocessing '{preprocessing_func.__name__}' to eeg.")
-    return preprocessing_func(eeg)
-
-def calc_metrics_for_epoch(row, data, sfreq, metric, channelwise):
+def calc_metrics_for_epoch(row, data_frame, sfreq, metric, channelwise):
     start = row['start'] * sfreq
     stop = row['stop'] * sfreq
-    current_epoch = data.iloc[int(start):int(stop), 1:]
+    current_epoch = data_frame.iloc[int(start):int(stop), 1:]
     if channelwise:
-        result = current_epoch.apply(apply_metric_func, metric_func=metric, axis=0)
+         result = current_epoch.p_apply(apply_metric_func, metric_func=metric, axis=0, executor='processes')
     else:
         #TODO: test code for multichannel application, so far not used
         result = metric(current_epoch)
@@ -108,7 +109,7 @@ class EEG_processor:
         return None, None
 
     def _preprocess_eeg(self):
-        self.raw = apply_preprocessing_function(self.raw, self.preprocessing_function)
+        self.raw = pipeline_preprocessing.preprocess_eeg(self.raw)
         self.info = self.raw.info
         return self.raw
 
@@ -275,15 +276,10 @@ class EEG_processor:
             epochs = self._epochs_from_whole_file()
 
         # Initialize metrics
-        metric_name=self.config.get('metric_set_name', ''),
-        if isinstance(metric_name, (tuple, list)):
-            metric_name = metric_name[0]
-        logging.info(f'calculating metrics from set {metric_name} for {len(epochs)} epochs in eeg {self.datapath}')
-        metric_function, channelwise = self._initialize_metric_functions(metric_name)
-
+        logging.info(f'Calculating metrics:')
         # Compute metrics
-        result_series = epochs.apply(calc_metrics_for_epoch, data=data, sfreq=self.sfreq, metric=metric_function[0], channelwise=channelwise, axis=1)
-
+        result_series = epochs.apply(calc_metrics_for_epoch, data_frame=data, sfreq=self.sfreq,
+                                       metric=metrics.calculate, channelwise=metrics.PER_CHANNEL, axis=1)
         # Save dataframe to csv
         if not result_series.empty:
             result_frame = pd.concat(result_series.to_list(), ignore_index=True, axis=0)
