@@ -186,7 +186,7 @@ class Processor:
         return df
 
     @staticmethod
-    def process_file(row: pd.Series, experiment, run) -> None:
+    def process_file(row: pd.Series, experiment) -> None:
         """
         Processes a single file.
 
@@ -227,9 +227,7 @@ class Processor:
         Processes experiments and their respective runs as specified in the YAML configuration.
         """
 
-        # Redirect all print outputs to the log file
-        logging.info(f'{"*" * 102}\n{"*" * 40} {datetime.today().strftime("%Y-%m-%d %H:%M:%S")} {"*" * 40}\n{"*" * 102}\n')
-            # Iterate through experiments defined in the configuration
+        # Iterate through experiments defined in the configuration
         for experiment in self.config['experiments']:
             # make sure we can access our sqlite base
             self.current_experiment = experiment
@@ -255,8 +253,8 @@ class Processor:
                 if len(files_df) == 0:
                     logging.warning('No valid files found for processing.')
                     return None
-                files_df.apply(self.process_file, experiment=self.current_experiment, run=self.current_run,
-                                        axis=1)
+                files_df.apply(self.process_file, experiment=self.current_experiment, axis=1)
+
                 self.populate_data_tables(self.current_experiment_entry)
 
         # Print a final message indicating completion
