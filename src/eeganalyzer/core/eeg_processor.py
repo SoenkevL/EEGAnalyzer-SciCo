@@ -82,8 +82,6 @@ class EEG_processor:
         self.config = config
         self.raw, self.sfreq = self._load_data_file(datapath, preload)
         self.info = self.raw.info
-        self.metric_path = None
-        self.select_metric, self.preprocessing_function = self._import_metrics()
         logging.debug(f'initialized EEGAnalyzer for datapath: {datapath}')
 
     #### Loading and processing data ####
