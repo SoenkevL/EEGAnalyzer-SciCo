@@ -29,7 +29,7 @@ from parallel_pandas import ParallelPandas
 import neurokit2 as nk
 
 #initialize parallel-pandas
-ParallelPandas.initialize(disable_pr_bar=True, show_vmem=False)
+ParallelPandas.initialize(disable_pr_bar=False, show_vmem=False)
 
 #### general methods ####
 
