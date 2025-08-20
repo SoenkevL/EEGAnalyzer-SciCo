@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Union, Any
 import matplotlib.pyplot as plt
 from pprint import pprint
 from eeganalyzer.preprocessing.channel_regex_patterns import get_default_patterns, merge_patterns, get_mne_channel_types
+from custom_files import channel_ident_patterns
 import argparse
 import os
 import datetime
@@ -203,16 +204,12 @@ class EEGPreprocessor:
         return self.channel_categories
 
     def categorize_channels(self, mark_unclassified_as_bad=False):
-        CUSTOM_PATTERNS = {
-            'EOG': [
-                r'.*Ref-?2.*',  # Matches anything containing 'Ref-0' or 'Ref0'
-            ],
-            'ECG': [
-                r'.*[Ii][Nn].*',  # Matches anything containing 'In' or 'ln' (case insensitive)
-            ]
-        }
-        categories = self.categorize_channels_orig(patterns=CUSTOM_PATTERNS, merge_with_default=True,
-                                                mark_unclassified_as_bad=mark_unclassified_as_bad)
+        CUSTOM_PATTERNS = channel_ident_patterns.get_custom_pattern()
+        categories = self.categorize_channels_orig(
+            patterns=CUSTOM_PATTERNS,
+            merge_with_default=channel_ident_patterns.MERGE_WITH_DEFAULT,
+            mark_unclassified_as_bad=mark_unclassified_as_bad
+        )
         return categories
 
 
