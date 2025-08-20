@@ -253,19 +253,10 @@ class Processor:
                 if len(files_df) == 0:
                     logging.warning('No valid files found for processing.')
                     return None
-                # n_chunks = max(len(files_df) // self.num_processes, 1)
-                # num_processes = min(n_chunks, self.num_processes)
-                # files_df.apply_parallel(self.process_file, experiment=self.current_experiment, run=self.current_run,
-                #                         axis=0, num_processes=num_processes, n_chunks=n_chunks)
                 files_df.apply(self.process_file, experiment=self.current_experiment, run=self.current_run,
                                         axis=1)
-                # files_df.swifter.apply(self.process_file, experiment=self.current_experiment, run=self.current_run, axis=1)
-
-                # Add the computed result frames to the database by iterating over the eegs of the experiment
                 self.populate_data_tables(self.current_experiment_entry)
 
         # Print a final message indicating completion
-        logging.info(f"\n{'*' * 50}")
         logging.info(f"All processing complete. Results stored in database: {self.current_experiment['sqlite_path']}")
-        logging.info(f"{'*' * 50}\n")
         return None
