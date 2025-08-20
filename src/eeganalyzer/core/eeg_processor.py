@@ -53,11 +53,11 @@ def calc_metrics_for_epoch(row, data_frame, sfreq, metric_name, channelwise):
     stop = row['stop'] * sfreq
     current_epoch = data_frame.iloc[int(start):int(stop), 1:]
     if channelwise:
-         result = current_epoch.p_apply(apply_metric_func, metric_name=metric_name, axis=0, executor='processes')
+         result = current_epoch.apply(apply_metric_func, metric_name=metric_name, axis=0)#, executor='processes')
     else:
         #TODO: test code for multichannel application, so far not used
-        result = metric(current_epoch)
-        result = pd.Series(result, name='all_channels')
+        result = apply_metric_func(current_epoch)
+        result.name = 'all_channels'
     result['annot'] = row['annot']
     result['start'] = row['start']
     result['duration'] = row['stop']-row['start']
@@ -203,8 +203,9 @@ class EEG_processor:
         # Initialize metrics
         logging.info(f'Calculating metrics:')
         # Compute metrics
-        result_series = epochs.apply(calc_metrics_for_epoch, data_frame=data, sfreq=self.sfreq,
-                                       metric_name=self.config.get('metric_name'), channelwise=metrics.PER_CHANNEL, axis=1)
+        result_series = epochs.p_apply(calc_metrics_for_epoch, data_frame=data, sfreq=self.sfreq,
+                                       metric_name=self.config.get('metric_name'), channelwise=metrics.PER_CHANNEL, axis=1,
+                                       executor='processes')
         # Save dataframe to csv
         if not result_series.empty:
             result_frame = pd.concat(result_series.to_list(), ignore_index=True, axis=0)
