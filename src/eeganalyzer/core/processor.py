@@ -99,7 +99,7 @@ class Processor:
         experiment = experiment if experiment else self.current_experiment
         experiment_entry = Alchemist.add_or_update_experiment(
                 self.session,
-                metric_set_name=metrics.METRIC_NAME,
+                metric_set_name=experiment.get('metric_name', ''),
                 run_name=experiment['name'],
                 fs=pipeline_preprocessing.SFREQ,
                 start=experiment['epoching']['start_time'],
@@ -199,7 +199,9 @@ class Processor:
                              'stop_time': experiment['epoching']['stop_time'],
                              'duration': experiment['epoching']['duration'],
                              'overlap': experiment['epoching']['overlap'],
-                             'recompute': experiment['recompute']
+                             'recompute': experiment['recompute'],
+                             'metric_name': experiment['metric_name'],
+                             'preprocessing_name': experiment['preprocessing_name'],
                              }
         logging.debug(f"Processing config: {pprint(processing_config, indent=4, width=100, compact=True)}")
         file_path = row['file_path']
