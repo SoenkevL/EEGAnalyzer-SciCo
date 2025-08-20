@@ -21,14 +21,13 @@ from pprint import pprint
 from typing import Dict, List, Optional, Union, Any
 import pandas as pd
 from datetime import datetime
-from multiprocesspandas import applyparallel
 from sqlalchemy.orm import Mapped
 import logging
 from eeganalyzer.utils.LoggingConfiguration import setup_logging
 
 from eeganalyzer.core.eeg_processor import EEG_processor
-from eeganalyzer.core.csv_processor import CSVProcessor
 from eeganalyzer.utils.database import Alchemist
+from custom_files import metrics, pipeline_preprocessing
 
 class Processor:
     
@@ -101,16 +100,16 @@ class Processor:
         run = run if run else self.current_run
         experiment_entry = Alchemist.add_or_update_experiment(
                 self.session,
-                metric_set_name=experiment['name'],
+                metric_set_name=metrics.METRIC_NAME,
                 run_name=run['name'],
-                fs=run['sfreq'],
+                fs=pipeline_preprocessing.SFREQ,
                 start=experiment['epoching']['start_time'],
                 stop=experiment['epoching']['stop_time'],
                 window_len=experiment['epoching']['duration'],
                 window_overlap=experiment['epoching']['overlap'],
-                lower_cutoff=run['filter']['l_freq'],
-                upper_cutoff=run['filter']['h_freq'],
-                montage=run['montage']
+                lower_cutoff=pipeline_preprocessing.L_FREQ_CUTOFF,
+                upper_cutoff=pipeline_preprocessing.H_FREQ_CUTOFF,
+                montage=pipeline_preprocessing.REFERENCE,
         )
         logging.debug(f"Added or updated experiment: {experiment_entry.id}")
         return experiment_entry
@@ -194,18 +193,13 @@ class Processor:
         Args:
             row (pd.Series): A row from the DataFrame containing file information.
         """
-        processing_config = {'metric_set_name': experiment['metric_set_name'],
-                             'metric_path': experiment['metric_path'],
+        processing_config = {'metric_path': experiment['metric_path'],
                              'annotations': experiment['annotations_of_interest'],
                              'outpath': row['outpath'],
-                             'l_freq':run['filter']['l_freq'],
-                             'h_freq': run['filter']['h_freq'],
-                             'montage': run['montage'],
                              'start_time': experiment['epoching']['start_time'],
                              'stop_time': experiment['epoching']['stop_time'],
                              'duration': experiment['epoching']['duration'],
                              'overlap': experiment['epoching']['overlap'],
-                             'sfreq': run['sfreq'],
                              'recompute': experiment['recompute']
                              }
         logging.debug(f"Processing config: {pprint(processing_config, indent=4, width=100, compact=True)}")
@@ -221,10 +215,6 @@ class Processor:
             if file_path.endswith(".fif") or file_path.endswith(".edf"):
                 current_eeg_processor = EEG_processor(file_path, processing_config)
                 result = current_eeg_processor.compute_metrics()
-            elif file_path.endswith(".csv"):
-                current_csv_processor = CSVProcessor(file_path, processing_config, sfreq=processing_config['sfreq'])
-                #TODO: have not adapted the csv processor to the new dict based functionallity
-                result = current_csv_processor.compute_metrics()
             else:
                 result = 'Result not computed. Output file ending not recognized.'
             logging.info(f"Result: {result}")
