@@ -10,7 +10,6 @@ decorator==5.2.1
 dill==0.4.0
 dotenv==0.9.9
 edgeofpy==0.0.1
--e git+ssh://git@github.com/SoenkevL/EEGAnalyzer-SciCo.git@f02f590c468a0523e16adfd4df562f492f265995#egg=eeganalyzer_scico
 executing==2.2.0
 fonttools==4.58.4
 h5py==3.14.0
