@@ -13,11 +13,6 @@ experiments:
     bids_folder: ./example/eeg
     # required, input file type, the type of files that should be treated as valid input files
     input_file_ending: '.edf'
-    # Metrics are specified in a metrics.py file
-    # required, Path where the metrics.py file can be found
-    metric_path: ./example/metrics.py
-    # required, The name of the metric_set which should be used for computation
-    metric_set_name: final-0
     # optional, annotations for which metrics should be calculated.
     # Need to be given as a list with the '-' infront of the option
     # - Leaving it empty calcs metrics for the whole file
@@ -39,37 +34,3 @@ experiments:
     outfile_ending: 'metrics.csv'
     # if files which allready exist should be recomputed
     recompute: True
-    # definition of the different runs for this experiment where montage and filtering can be adapted
-    runs:
-      -
-        #required, name of the run for debugging
-        name: lowFreq
-        #optional, filter settings to apply to eeg, can be left empty
-        # not specifying a l_freq or h_freq means no filtering will be applied for the lower or upper bound
-        # filters are defined to filter inbetween l_freq and h_freq, some examples:
-        # - l_freq=1 and h_freq=4 is a bandpass filter between 1 and 4 Hz
-        # - l_freq=1, h_freq=None is a highpass filter of 1 Hz
-        # - l_freq=4, and h_freq=1 is a bandstop filter 1-4 Hz
-        filter:
-          h_freq: 12
-          l_freq: 0.5
-        #optional, sampling freq of the signal to resample to, can be left empty
-        sfreq: 100
-        #required, montage that should be used, out of 'avg', 'circumferential', 'doublebanana'
-        montage: avg
-        # folder structure, final results are saved at <root_bids_folder>/metrics<metrics_prefix>/<outfile_ending>
-        # optional, should be of form '/<folder1>/<folder2>' can be done with N folders
-        metrics_prefix: /lowfreq/avg
-      - # name of the run for debugging
-        name: allFreq
-        # filter settings to apply to eeg, can be left empty
-        filter:
-          h_freq: 60
-          l_freq: 0.5
-        # sampling freq of the signal to resample to, can be left empty
-        sfreq: 200
-        # montage that should be used, out of 'avg', 'circumferential', 'doublebanana'
-        montage: doublebanana
-        # folder structure, final results are saved at <root_bids_folder>/metrics<metrics_prefix>/<outfile_ending>
-        # should be of form '/<folder1>/<folder2>' can be done with N folders
-        metrics_prefix: /allFreq/doublebanana
