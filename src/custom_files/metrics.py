@@ -26,16 +26,24 @@ import edgeofpy as eop
 import neurokit2 as nk
 import numpy as np
 import logging
+import time
 logger = logging.getLogger(f"{__name__}")
 
 PER_CHANNEL = True
 
 ####mandatory function to choose a metric set in the pipeline####
 def calculate(data, name, **kwargs):
+    result=None
+    t_start = time.time()
     if name =='lzc_only':
         logger.debug(f'Calculating lzc for data')
-        return lzc_adapted(data)
-    return None
+        result = lzc_adapted(data)
+    elif name =='first_metric_set_MysticalEntropy':
+        logger.debug(f'Calculating first_metric_set_MysticalEntropy for data')
+        result =  first_metric_set_MysticalEntropy(data)
+    t_elapsed = time.time() - t_start
+    logger.debug(f'Calculating {name} took {t_elapsed} seconds')
+    return result
 
 #### custom additional functions ####
 def lzc_adapted(channel_input: np.ndarray) -> dict:

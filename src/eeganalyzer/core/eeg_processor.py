@@ -15,9 +15,7 @@ EEG processor for EEG analysis.
 
 This module provides the EEG_processor class for processing EEG data.
 """
-import os
-import sys
-from typing import Tuple, Dict, List, Union, Callable
+from typing import Dict, List, Union
 
 import mne
 import numpy as np
@@ -26,7 +24,7 @@ import logging
 from eeganalyzer.utils.buttler import check_outfile_name, find_task_from_filename
 from custom_files import metrics, pipeline_preprocessing
 from parallel_pandas import ParallelPandas
-import neurokit2 as nk
+import time
 
 #initialize parallel-pandas
 ParallelPandas.initialize(disable_pr_bar=False, show_vmem=False)
@@ -181,6 +179,7 @@ class EEG_processor:
 
     def compute_metrics(self) -> str:
         # Check the name of the outfile
+        t_start = time.time()
         outfile_check, outfile_check_message = check_outfile_name(self.config['outpath'], file_exists_ok=self.config['recompute'])
         if not outfile_check:
             return outfile_check_message
@@ -207,7 +206,9 @@ class EEG_processor:
                                        metric_name=self.config.get('metric_name'), channelwise=metrics.PER_CHANNEL, axis=1,
                                        executor='processes')
         # Save dataframe to csv
+        t_elapsed = time.time() - t_start
         if not result_series.empty:
+            logging.info(f'Calculating metrics finished and took {t_elapsed:.2f} seconds')
             result_frame = pd.concat(result_series.to_list(), ignore_index=True, axis=0)
             # result_frame = result_series[0]
             # result_series[1:].apply(lambda x: pd.concat([result_frame, x], ignore_index=True, axis=0))
@@ -215,7 +216,9 @@ class EEG_processor:
             result_frame = result_frame.reset_index(drop=True)
             # format the dataframe
             result_frame.to_csv(self.config['outpath'])
+            logging.info(f'Results saved to {self.config["outpath"]}')
             return 'finished and saved successfully'
         else:
+            logging.info(f'Calculating metrics failed and took {t_elapsed} seconds')
             return 'no metrics could be calculated'
 

@@ -70,19 +70,6 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-#### Option 2: From PyPI
-I try to keep it updated whenever a version changes. 
-This is most useful to get first experience with the tool or use it in its default configuration.
-
-```bash
-# Create virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Install package
-pip install eeganalyzer-scico
-```
-
 ## Usage
 
 ### Command-Line Interface
@@ -90,6 +77,7 @@ pip install eeganalyzer-scico
 #### EEG Preprocessing and visualization
 
 For interactive EEG preprocessing with visual feedback:
+(not recommended for server use)
 
 ``` bash
 preprocessor
@@ -107,11 +95,13 @@ Launch the interactive preprocessing GUI that provides:
 ``` bash
 eeganalyzer --yaml_config <config_file> --logfile_path <log_file>
 ```
-
 **Arguments:**
 
 - `--yaml_config`: Path to YAML configuration file (required)
 - `--logfile_path`: Path to log file (optional)
+
+There are some things that the user needs to specify before running the analysis:
+#TODO **add more details**
 
 #### Visualization
 This is still very rudimentary
@@ -201,6 +191,12 @@ The tool uses YAML configuration files to control processing parameters for the 
 - **Epoching**: Start/stop times, duration, window overlap
 - **File Processing**: Inclusion criteria, output directories
 - **Metrics**: Selection of analysis functions to apply
+
+## The metric file
+#TODO **add more details**
+
+## The preprocessing file
+#TODO **add more details**
 
 ## Quick Start Example
 

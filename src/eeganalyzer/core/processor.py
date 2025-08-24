@@ -20,10 +20,10 @@ import os
 from pprint import pprint
 from typing import Dict, List, Optional, Union, Any
 import pandas as pd
-from datetime import datetime
 from sqlalchemy.orm import Mapped
 import logging
 from eeganalyzer.utils.LoggingConfiguration import setup_logging
+import time
 
 from eeganalyzer.core.eeg_processor import EEG_processor
 from eeganalyzer.utils.database import Alchemist
@@ -34,7 +34,7 @@ class Processor:
     def __init__(self, config, log_file=None, max_processors_used=1) -> None:
         # Initialize logging
         #TODO: change this up to use .env file
-        setup_logging(log_level=config.get('log_level', logging.INFO),
+        setup_logging(log_level=os.getenv('LOG_LEVEL', logging.INFO),
                       log_file=log_file)
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.logger.info("Processor initialized")
@@ -193,6 +193,7 @@ class Processor:
         Args:
             row (pd.Series): A row from the DataFrame containing file information.
         """
+        t_start = time.time()
         processing_config = {'annotations': experiment['annotations_of_interest'],
                              'outpath': row['outpath'],
                              'start_time': experiment['epoching']['start_time'],
@@ -209,16 +210,15 @@ class Processor:
         already_processed = row['already_processed']
 
         if not already_processed or processing_config['recompute']:
-            logging.info(f"Processing file: {file_path}")
-            logging.info(f"Output path: {outpath}")
+            logging.info(f"Attempting to process file: {file_path}")
+            logging.info(f"Results will be saved to: {outpath}")
 
             # Initialize EEG_processor and compute metrics
             if file_path.endswith(".fif") or file_path.endswith(".edf"):
                 current_eeg_processor = EEG_processor(file_path, processing_config)
-                result = current_eeg_processor.compute_metrics()
+                current_eeg_processor.compute_metrics()
             else:
-                result = 'Result not computed. Output file ending not recognized.'
-            logging.info(f"Result: {result}")
+                logging.warning('Result not computed. Output file ending not recognized.')
         else:
             logging.info(f"Skipping already processed file: {file_path}")
 

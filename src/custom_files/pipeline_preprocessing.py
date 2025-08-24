@@ -1,4 +1,5 @@
 import mne
+import time
 
 import logging
 logger = logging.getLogger(f"{__name__}")
@@ -11,9 +12,14 @@ H_FREQ_CUTOFF = 35
 L_FREQ_CUTOFF = 1
 REFERENCE = 'average'
 
+
 def preprocess_eeg(eeg: mne.io.Raw, name) -> mne.io.Raw:
     if name =='general':
-        return general_preprocessing(eeg)
+        t_start = time.time()
+        result = general_preprocessing(eeg)
+        t_elapsed = time.time() - t_start
+        logger.debug(f'Preprocessing eeg using general preprocessing took {t_elapsed} seconds')
+        return result
     return eeg
 
 def general_preprocessing(eeg):
