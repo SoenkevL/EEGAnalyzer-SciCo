@@ -101,14 +101,14 @@ class Processor:
                 self.session,
                 metric_set_name=experiment.get('metric_name', ''),
                 run_name=experiment['name'],
-                fs=pipeline_preprocessing.SFREQ,
+                fs=experiment['preprocessing_params']['sfreq'],
                 start=experiment['epoching']['start_time'],
                 stop=experiment['epoching']['stop_time'],
                 window_len=experiment['epoching']['duration'],
                 window_overlap=experiment['epoching']['overlap'],
-                lower_cutoff=pipeline_preprocessing.L_FREQ_CUTOFF,
-                upper_cutoff=pipeline_preprocessing.H_FREQ_CUTOFF,
-                montage=pipeline_preprocessing.REFERENCE,
+                lower_cutoff=experiment['preprocessing_params']['l_freq'],
+                upper_cutoff=experiment['preprocessing_params']['h_freq'],
+                montage=experiment['preprocessing_params']['reference'],
         )
         logging.debug(f"Added or updated experiment: {experiment_entry.id}")
         return experiment_entry
@@ -203,6 +203,8 @@ class Processor:
                              'recompute': experiment['recompute'],
                              'metric_name': experiment['metric_name'],
                              'preprocessing_name': experiment['preprocessing_name'],
+                             'preprocessing_params': experiment['preprocessing_params'],
+                             'metric_params': experiment['metric_params'],
                              }
         logging.debug(f"Processing config: {pprint(processing_config, indent=4, width=100, compact=True)}")
         file_path = row['file_path']

@@ -32,12 +32,12 @@ ParallelPandas.initialize(disable_pr_bar=False, show_vmem=False)
 #### general methods ####
 
 def apply_metric_func(data: Union[np.ndarray, List[float]],
-                      metric_name: str) -> Dict[str, float]:
+                      metric_name: str, **kwargs) -> Dict[str, float]:
 
     # Ensures EEG channel is saved as contiguous array in memory
     data = np.ascontiguousarray(data)
     try:
-        result_dict = metrics.calculate(data, metric_name)
+        result_dict = metrics.calculate(data, metric_name, **kwargs)
     except Exception as e:
         # Catch and log exceptions during default metric calculation
         logging.error(f"Could not apply metric"
@@ -46,16 +46,19 @@ def apply_metric_func(data: Union[np.ndarray, List[float]],
     result_series = pd.Series(data=result_dict)
     return result_series
 
-def calc_metrics_for_epoch(row, data_frame, sfreq, metric_name, channelwise):
+def calc_metrics_for_epoch(row, data_frame, sfreq, metric_name, **kwargs):
     start = row['start'] * sfreq
     stop = row['stop'] * sfreq
     current_epoch = data_frame.iloc[int(start):int(stop), 1:]
-    if channelwise:
-         result = current_epoch.apply(apply_metric_func, metric_name=metric_name, axis=0)#, executor='processes')
+    if kwargs.get('channelwise', True): #by default we assume we want to calculate channelwise metrics
+         result = current_epoch.apply(apply_metric_func, metric_name=metric_name, axis=0, **kwargs)#, executor='processes')
     else:
         #TODO: test code for multichannel application, so far not used
-        result = apply_metric_func(current_epoch)
+        result = apply_metric_func(current_epoch, **kwargs)
         result.name = 'all_channels'
+    if isinstance(result, pd.Series):
+        logging.warning('metric calculation returned a series not a dataframe. Something went wrong most probably, check results carefully')
+
     result['annot'] = row['annot']
     result['start'] = row['start']
     result['duration'] = row['stop']-row['start']
@@ -77,8 +80,7 @@ class EEG_processor:
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.datapath = datapath
         self.config = config
-        self.raw, self.sfreq = self._load_data_file(datapath, preload)
-        self.info = self.raw.info
+        self.raw, _ = self._load_data_file(datapath, preload)
         logging.debug(f'initialized EEGAnalyzer for datapath: {datapath}')
 
     #### Loading and processing data ####
@@ -104,8 +106,8 @@ class EEG_processor:
         return None, None
 
     def _preprocess_eeg(self):
-        self.raw = pipeline_preprocessing.preprocess_eeg(self.raw, self.config.get('preprocessing_name'))
-        self.info = self.raw.info
+        self.raw = pipeline_preprocessing.preprocess_eeg(self.raw, self.config.get('preprocessing_name')
+                                                         ,**self.config.get('preprocessing_params'))
         return self.raw
 
     #### Epoching ####
@@ -202,9 +204,9 @@ class EEG_processor:
         # Initialize metrics
         logging.info(f'Calculating metrics:')
         # Compute metrics
-        result_series = epochs.p_apply(calc_metrics_for_epoch, data_frame=data, sfreq=self.sfreq,
-                                       metric_name=self.config.get('metric_name'), channelwise=metrics.PER_CHANNEL, axis=1,
-                                       executor='processes')
+        result_series = epochs.p_apply(calc_metrics_for_epoch, data_frame=data, sfreq=self.raw.info['sfreq'],
+                                       metric_name=self.config.get('metric_name'), axis=1,
+                                       executor='processes', **self.config.get('metric_params'))
         # Save dataframe to csv
         t_elapsed = time.time() - t_start
         if not result_series.empty:
