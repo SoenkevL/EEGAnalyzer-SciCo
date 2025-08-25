@@ -204,7 +204,7 @@ class Processor:
                              'preprocessing_params': experiment['preprocessing_params'],
                              'metric_params': experiment['metric_params'],
                              }
-        logging.debug(f"Processing config: {pformat(processing_config, indent=4, width=100, compact=True)}")
+        logging.debug(f"Processing config: \n{pformat(processing_config, indent=4, width=100, compact=True)}")
         file_path = row['file_path']
         outpath = row['outpath']
         already_processed = row['already_processed']
