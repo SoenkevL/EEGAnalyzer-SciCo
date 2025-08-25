@@ -31,7 +31,7 @@ from custom_files import metrics, pipeline_preprocessing
 
 class Processor:
     
-    def __init__(self, config, log_file=None, max_processors_used=1) -> None:
+    def __init__(self, config, log_file=None) -> None:
         # Initialize logging
         #TODO: change this up to use .env file
         setup_logging(log_level=os.getenv('LOG_LEVEL', logging.INFO),
@@ -42,7 +42,6 @@ class Processor:
         self.session = None
         self.config = config
         self.log_file = log_file
-        self.num_processes = max_processors_used
         self.current_eeg_processor = None
         self.current_csv_processor = None
         self.current_experiment = None
@@ -254,10 +253,21 @@ class Processor:
 
                 if len(files_df) == 0:
                     logging.warning('No valid files found for processing.')
+                    # Dispose engine before continuing, to release resources/threads
+                    try:
+                        engine.dispose()
+                    except Exception:
+                        pass
                     return None
                 files_df.apply(self.process_file, experiment=self.current_experiment, axis=1)
 
                 self.populate_data_tables(self.current_experiment_entry)
+
+            # Dispose engine after the session context to release any engine-level resources/threads
+            try:
+                engine.dispose()
+            except Exception:
+                pass
 
         # Print a final message indicating completion
         logging.info(f"All processing complete. Results stored in database: {self.current_experiment['sqlite_path']}")

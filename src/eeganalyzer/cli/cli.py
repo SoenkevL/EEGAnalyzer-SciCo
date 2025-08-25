@@ -22,6 +22,7 @@ import sys
 from typing import Dict, Any, Union
 from dotenv import load_dotenv
 import numpy as np
+import logging  # added
 
 from eeganalyzer.core.processor import Processor
 from eeganalyzer.utils.config import load_yaml_file, check_file_exists_and_create_path
@@ -58,13 +59,13 @@ def main() -> int:
     yaml_file = yaml_file if yaml_file else os.getenv("CONFIG_PATH")
     config: Dict[str, Any] = load_yaml_file(yaml_file)
 
-    # Define number of processes to use
-    max_processors_used = int(os.getenv('MAX_PROCESSORS_USED', np.floor((os.cpu_count()-1))))
-    max_processors_used = int(min(max_processors_used, os.cpu_count()-1))
-
     # Process the experiments as defined in the configuration
-    processor = Processor(config, log_file, max_processors_used)
-    processor.process_experiment()
+    processor = Processor(config, log_file)
+    try:
+        processor.process_experiment()
+    finally:
+        # Ensure all logging handlers/threads are cleanly shut down before interpreter teardown
+        logging.shutdown()
     
     return 0
 

@@ -15,6 +15,7 @@ EEG processor for EEG analysis.
 
 This module provides the EEG_processor class for processing EEG data.
 """
+import os
 from typing import Dict, List, Union
 
 import mne
@@ -26,8 +27,6 @@ from custom_files import metrics, pipeline_preprocessing
 from parallel_pandas import ParallelPandas
 import time
 
-#initialize parallel-pandas
-ParallelPandas.initialize(disable_pr_bar=False, show_vmem=False)
 
 #### general methods ####
 
@@ -82,6 +81,13 @@ class EEG_processor:
         self.config = config
         self.raw, _ = self._load_data_file(datapath, preload)
         logging.debug(f'initialized EEGAnalyzer for datapath: {datapath}')
+
+        # initialize parallel-pandas
+        num_system_cpus = os.cpu_count()
+        logging.debug(f'number of system cpus: {num_system_cpus}')
+        n_cpu = min(int(os.getenv('MAX_PROCESSORS')), num_system_cpus)
+        logging.info(f'initializing parallel-pandas with {n_cpu} processes')
+        ParallelPandas.initialize(disable_pr_bar=False, show_vmem=False, n_cpu=n_cpu)
 
     #### Loading and processing data ####
     def _load_data_file(self, data_file: str, preload: bool = True):
