@@ -49,11 +49,7 @@ architecture that makes it easy to incorporate custom analysis functions and ext
         - Arch: `sudo pacman -S tk`
         - mac: `brew install python-tk`
 
-### Installation Options
-
-#### Option 1: From Source 
-Recommended for research as it is more adaptable and kept up to date.
-
+### Installation
 I highly recommend forking the project beforehand to ensure the pipeline or functions dont change during your research. 
 When you create your fork, exchange the path to the forked repository in the command below. Remember to use SSH instead of HTTPS if you want to sync with your fork using an SSHKey.
 
@@ -66,7 +62,10 @@ cd EEGAnalyzer
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install in development mode
+# Install dependencies
+pip install -r requirements.txt
+
+# Install the pipeline itself in development mode
 pip install -e .
 ```
 
@@ -90,6 +89,11 @@ Launch the interactive preprocessing GUI that provides:
 - Support for multiple EEG file formats (EDF, BDF, GDF, BrainVision, CNT, EEGLAB, FIF)
 - Save preprocessed data in various formats
 
+**src/custom_files**
+
+This folder contains custom files that are used by the pipeline.
+1. channel_ident_patterns.py: Is used by the preprocessing module to identify channel types
+
 #### EEG Analysis
 
 ``` bash
@@ -97,11 +101,23 @@ eeganalyzer --yaml_config <config_file> --logfile_path <log_file>
 ```
 **Arguments:**
 
-- `--yaml_config`: Path to YAML configuration file (required)
+- `--yaml_config`: Path to YAML configuration file (optional)
 - `--logfile_path`: Path to log file (optional)
 
-There are some things that the user needs to specify before running the analysis:
-#TODO **add more details**
+**.env**
+
+The pipeline makes use of environment variables for configuration. You can set these variables in a `.env` file
+in the root directory of the project.
+Here one should specify the following:
+CONFIG_PATH: Path to the configuration file
+MAX_PROCESSORS: Maximum number of parallel processes (will be set to number of available cores by default and as max value)
+LOG_LEVEL: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+
+**src/custom_files**
+
+This folder contains custom files that are used by the pipeline.
+1. metrics.py: Contains the metrics that are used by the pipeline.
+2. pipeline_preprocessing.py: Contains the preprocessing pipeline that is used by the pipeline.
 
 #### Visualization
 This is still very rudimentary
@@ -112,42 +128,6 @@ metricviewer --sql_path <database_path>
 **Arguments:**
 
 - `--sql_path`: Path to SQLite database file (required)
-
-
-### Python API
-
-#### Standard Analysis
-
-``` python
-from src.eeganalyzer.core.processor import process_experiment
-from src.eeganalyzer.utils.config import load_yaml_file
-
-# Load configuration
-config = load_yaml_file('config.yaml')
-
-# Process experiments
-process_experiment(config, 'results/analysis.log')
-```
-
-#### Programmatic Preprocessing
-
-``` python
-from eeganalyzer.preprocessing.eeg_preprocessing_pipeline import EEGPreprocessor
-
-# Initialize and load data
-preprocessor = EEGPreprocessor('path/to/eeg_file.edf')
-preprocessor.categorize_channels()
-
-# Apply preprocessing chain
-preprocessor.apply_filter(l_freq=1.0, h_freq=40.0)  # Bandpass filter
-preprocessor.resample_data(sfreq=250)               # Downsample
-preprocessor.fit_ica()                              # ICA fitting
-preprocessor.exclude_ica_components([0, 1, 2])     # Remove artifacts
-preprocessor.interpolate_bad_channels()             # Fix bad channels
-
-# Save results
-preprocessor.save_preprocessed('clean_eeg.fif')
-```
 
 ### Preprocessing Workflow
 
@@ -167,7 +147,8 @@ The preprocessing module integrates seamlessly with the main analysis pipeline, 
 ```
 EEGAnalyzer/
 ├── src/
-│   ├── eeganalyzer/           # Main package
+│   ├── custom_files/         # Custom files for the pipeline intended for alteration 
+│   ├── eeganalyzer/          # Main package
 │   │   ├── cli/              # Command-line interface
 │   │   ├── core/             # Core processing logic
 │   │   ├── preprocessing/    # EEG preprocessing modules
@@ -191,12 +172,6 @@ The tool uses YAML configuration files to control processing parameters for the 
 - **Epoching**: Start/stop times, duration, window overlap
 - **File Processing**: Inclusion criteria, output directories
 - **Metrics**: Selection of analysis functions to apply
-
-## The metric file
-#TODO **add more details**
-
-## The preprocessing file
-#TODO **add more details**
 
 ## Quick Start Example
 
