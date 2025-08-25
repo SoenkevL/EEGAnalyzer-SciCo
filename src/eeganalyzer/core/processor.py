@@ -130,7 +130,9 @@ class Processor:
         infile_ending = self.current_experiment['input_file_ending']
         outfile_ending = self.current_experiment['outfile_ending']
         folder_extensions = '/'+'/'.join(
-            [self.current_experiment.get('preprocessing_name'), self.current_experiment.get('metric_name')])
+            [self.current_experiment.get('name').replace(' ', '_'),
+             self.current_experiment.get('preprocessing_name').replace(' ', '_'),
+             self.current_experiment.get('metric_name').replace(' ', '_')])
         """
         Creates a DataFrame containing valid file paths, their corresponding output paths,
         and the processed status (whether the output file already exists).
