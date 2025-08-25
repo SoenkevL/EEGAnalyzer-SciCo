@@ -119,6 +119,8 @@ class EEG_processor:
     #### Epoching ####
     def _epochs_from_annotation(self):
         start = self.config.get('start_time', 0)  # Default ep_start to 0 if None
+        if not start:
+            start = 0
         stop = self.config.get('stop_time', None)
         duration = self.config.get('duration', None)
         overlap = self.config.get('overlap', 0)
