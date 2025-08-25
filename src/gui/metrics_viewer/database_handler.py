@@ -16,7 +16,7 @@ Database handler for the EEG Metrics Viewer.
 This module provides functionality for interacting with the SQLite database
 containing EEG metrics data.
 """
-
+import logging
 from typing import List, Dict, Any
 import pandas as pd
 
@@ -24,7 +24,6 @@ import pandas as pd
 from eeganalyzer.utils.database import Alchemist, Experiment
 
 from .utils import METADATA_COLUMNS
-
 
 class DatabaseHandler:
     """
@@ -41,7 +40,8 @@ class DatabaseHandler:
         self.db_path = db_path
         self.engine = Alchemist.initialize_tables(db_path)
         self.session = Alchemist.make_session(self.engine)
-        
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+
     def __del__(self):
         """Close the session when the object is deleted."""
         if hasattr(self, 'session'):
@@ -92,7 +92,7 @@ class DatabaseHandler:
             df = pd.read_sql_query(query, self.engine)
             return df
         except Exception as e:
-            print(f"Error retrieving metrics data: {e}")
+            logging.error(f"Error retrieving metrics data: {e}")
             return pd.DataFrame()
     
     def get_available_metrics(self, experiment_id: str, eeg_id: str) -> List[str]:

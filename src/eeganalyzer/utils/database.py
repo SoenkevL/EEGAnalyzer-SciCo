@@ -23,6 +23,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship,
 from sqlalchemy import ForeignKey, String, create_engine, text, select, DateTime, func, Integer, Table, Column
 from sqlalchemy.exc import SQLAlchemyError
 from typing import List, Optional, Union, Dict, Any, Tuple, Type
+import logging
+logger = logging.getLogger(f"{__name__}")
 # declaring a shorthand for the declarative base class
 class Base(DeclarativeBase):
     pass
@@ -118,15 +120,15 @@ class Alchemist:
             stmt = text(f'DROP TABLE IF EXISTS {table_name}')
             with engine.connect() as connection:
                 connection.execute(stmt)
-                print(f"Table {table_name} removed successfully.")
+                logger.info(f"Table {table_name} removed successfully.")
 
             # Remove the table from the MetaData object
             table = Base.metadata.tables.get(table_name)
             if table is not None and del_from_metadata:
                 Base.metadata.remove(table)
-                print(f"Table {table_name} removed from metadata successfully.")
+                logger.info(f"Table {table_name} removed from metadata successfully.")
         except SQLAlchemyError as e:
-            print(f"Error: {e}")
+            logger.error(f"Error: {e}")
 
     @staticmethod
     def add_column(engine, table_name: str, column_name: str, column_type: str) -> None:
@@ -149,10 +151,10 @@ class Alchemist:
             stmt = text(f'ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}')
             with Session(engine) as session:
                 result = session.execute(stmt)
-                print(f"Column {column_name} added successfully.")
+                logger.info(f"Column {column_name} added successfully.")
                 session.commit()
         except SQLAlchemyError as e:
-            print(f"Error: {e}")
+            logger.error(f"Error: {e}")
 
     @staticmethod
     def add_multiple_columns(engine, table_name: str, column_names: List[str], column_types: Union[str, List[str]]):
@@ -176,12 +178,12 @@ class Alchemist:
                     # Execute the ALTER TABLE command
                     stmt = text(f'ALTER TABLE {table_name} ADD COLUMN {column_name} {type}')
                     session.execute(stmt)
-                    print(f"Column {column_name} added successfully.")
+                    logger.info(f"Column {column_name} added successfully.")
 
                 session.commit()
-                print(f"Columns commited successfully.")
+                logger.info(f"Columns commited successfully.")
         except SQLAlchemyError as e:
-            print(f"Error: {e}")
+            logger.error(f"Error: {e}")
 
     @staticmethod
     def remove_column(engine, table_name: str, column_name: str) -> None:
@@ -201,9 +203,9 @@ class Alchemist:
             stmt = text(f'ALTER TABLE {table_name} DROP COLUMN {column_name}')
             with engine.connect() as connection:
                 connection.execute(stmt)
-                print(f"Column {column_name} removed successfully.")
+                logger.info(f"Column {column_name} removed successfully.")
         except SQLAlchemyError as e:
-            print(f"Error: {e}")
+            logger.error(f"Error: {e}")
 
     # function to retrieve data from the databse
     @staticmethod
@@ -224,7 +226,7 @@ class Alchemist:
             result = session.scalars(query).all()
             return result
         except SQLAlchemyError as e:
-            print(f"Error: {e}")
+            logger.error(f"Error: {e}")
             return []
 
     @staticmethod
@@ -298,17 +300,17 @@ class Alchemist:
                     df_old = pd.read_sql_table(table_name, con)
                     df_merged = pd.concat([df_old, df_new], ignore_index=True)
                     df_merged_unique = df_merged.drop_duplicates().reset_index(drop=True)
-                    print(f"Table {table_name} exist, appending new rows to existing table")
+                    logger.info(f"Table {table_name} exist, appending new rows to existing table")
                 except ValueError:
-                    print(f"Table {table_name} does not exist, creating new table")
+                    logger.info(f"Table {table_name} does not exist, creating new table")
                     df_merged_unique = df_new
                 except Exception as e:
-                    print(f"Error reading existing table: {e}")
+                    logger.error(f"Error reading existing table: {e}")
                     return None
             elif table_exists == 'replace':
                 df_merged_unique = df_new
             else:
-                print(f'table_exists argument {table_exists} is not valid, must be either append or replace')
+                logger.info(f'table_exists argument {table_exists} is not valid, must be either append or replace')
                 return None
 
             # Add data to SQL database
@@ -319,11 +321,11 @@ class Alchemist:
                 index=False  # Include the index as a column
             )
 
-            print(f"Successfully created and populated table: {table_name}")
+            logger.info(f"Successfully created and populated table: {table_name}")
             return table_name
 
         except Exception as e:
-            print(f"Error creating metric data table: {e}")
+            logger.error(f"Error creating metric data table: {e}")
             return None
 
     @staticmethod
@@ -346,7 +348,7 @@ class Alchemist:
             if not existing:
                 return new_id
             attempt += 1
-            print(f"ID collision detected, generating new ID")
+            logging.debug(f"ID collision detected, generating new ID")
         raise RuntimeError(f"Failed to generate a unique ID after {max_retries} attempts.")
 
     @staticmethod
@@ -379,12 +381,12 @@ class Alchemist:
                      filepath=filepath,
                      filetype=file_extension)
             session.add(eeg)
-            print(f"Created new EEG entry: {filename}")
+            logger.info(f"Created new EEG entry: {filename}")
         elif len(matching_eegs) == 1:
-            print(f"Found matching EEG in the dataset: {filename}")
+            logger.info(f"Found matching EEG in the dataset: {filename}")
             eeg = matching_eegs[0]
         else:
-            print(f"Multiple EEGs in the dataset that match {filename}, please manually check")
+            logger.warning(f"Multiple EEGs in the dataset that match {filename}, please manually check")
             return None
         session.commit()
         return eeg
@@ -438,10 +440,10 @@ class Alchemist:
             )
             session.add(experiment)
             session.commit()
-            print(f"Created new metric set: {metric_set_name}")
+            logger.info(f"Created new metric set: {metric_set_name}")
             return experiment
         elif len(matching_experiments) == 1:
-            print(f"Found existing metric set: {metric_set_name}")
+            logger.info(f"Found existing metric set: {metric_set_name}")
             return matching_experiments[0]
         else:
             raise ValueError(f"Multiple metric sets found for {metric_set_name}")
@@ -468,13 +470,13 @@ class Alchemist:
             unique_id = Alchemist.create_unique_id(session, DataSet)
             dataset = DataSet(id=unique_id, name=dataset_name, path=dataset_path, description=dataset_description)
             session.add(dataset)
-            print(f"Created new dataset: {dataset_name}")
+            logger.info(f"Created new dataset: {dataset_name}")
         elif len(matching_datasets) == 1:
-            print(f"Found matching dataset in database, updating description if necessary")
+            logger.info(f"Found matching dataset in database, updating description if necessary")
             dataset = matching_datasets[0]
             dataset.description = dataset_description
         else:
-            print('Multiple datasets in the database that match name and path, please manually check')
+            logger.warning('Multiple datasets in the database that match name and path, please manually check')
             return None
         session.commit()
         return dataset
@@ -484,14 +486,14 @@ class Alchemist:
                        result_path: str) -> Optional[ResultAssociation]:
         matching_results = Alchemist.find_entries(session, ResultAssociation, experiment_id=experiment_id, eeg_id=eeg_id)
         if len(matching_results) == 0:
-            print('No result found for experiment and eeg, please ensure experiment and eeg are in the database')
+            logger.warning('No result found for experiment and eeg, please ensure experiment and eeg are in the database')
             return None
         elif len(matching_results) == 1:
             matching_results[0].result_path = result_path
             session.commit()
             return matching_results[0]
         else:
-            print('Multiple results in the database that match experiment and eeg, please manually check')
+            logger.warning('Multiple results in the database that match experiment and eeg, please manually check')
             return None
 
     @staticmethod
@@ -563,7 +565,7 @@ class Alchemist:
                 df=channel_data
             )
             session.commit()
-            print("Test data added successfully.")
+            logger.info("Test data added successfully.")
 
 if __name__ == "__main__":
     # Run the test functions

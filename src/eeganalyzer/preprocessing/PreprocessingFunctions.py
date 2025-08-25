@@ -7,7 +7,6 @@ import mne
 import neurokit2 as nk
 import mat4py
 import numpy as np
-from icecream import ic
 import pandas as pd
 
 def print_all_builtin_montages():

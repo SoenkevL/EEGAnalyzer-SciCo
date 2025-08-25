@@ -80,7 +80,7 @@ class EEG_processor:
         self.datapath = datapath
         self.config = config
         self.raw, _ = self._load_data_file(datapath, preload)
-        logging.debug(f'initialized EEGAnalyzer for datapath: {datapath}')
+        logging.info(f'initialized EEGAnalyzer for datapath: {datapath}')
 
         # initialize parallel-pandas
         num_system_cpus = os.cpu_count()

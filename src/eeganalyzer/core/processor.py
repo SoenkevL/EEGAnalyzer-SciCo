@@ -17,7 +17,7 @@ This module provides the main processing functions for EEG analysis.
 """
 
 import os
-from pprint import pprint
+from pprint import pformat
 from typing import Dict, List, Optional, Union, Any
 import pandas as pd
 from sqlalchemy.orm import Mapped
@@ -27,7 +27,6 @@ import time
 
 from eeganalyzer.core.eeg_processor import EEG_processor
 from eeganalyzer.utils.database import Alchemist
-from custom_files import metrics, pipeline_preprocessing
 
 class Processor:
     
@@ -205,7 +204,7 @@ class Processor:
                              'preprocessing_params': experiment['preprocessing_params'],
                              'metric_params': experiment['metric_params'],
                              }
-        logging.debug(f"Processing config: {pprint(processing_config, indent=4, width=100, compact=True)}")
+        logging.debug(f"Processing config: {pformat(processing_config, indent=4, width=100, compact=True)}")
         file_path = row['file_path']
         outpath = row['outpath']
         already_processed = row['already_processed']
