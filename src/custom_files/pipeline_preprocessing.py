@@ -33,8 +33,8 @@ def apply_filter(raw, l_freq=None, h_freq=None):
     raw_l_freq_cutoff = raw.info.get('highpass')
     H = h_freq if h_freq else raw_h_freq_cutoff
     L = l_freq if l_freq else raw_l_freq_cutoff
-    logger.info(f'h freq cutoff: {h_freq}, l freq cutoff: {h_freq}')
     logger.info(f'raw h freq cutoff: {raw_h_freq_cutoff}, raw l freq cutoff: {raw_l_freq_cutoff}')
+    logger.info(f'new h freq cutoff: {h_freq}, new l freq cutoff: {l_freq}')
     if raw_h_freq_cutoff > H and raw_l_freq_cutoff < L:
         logger.info(f'Applying bandpass filter to raw eeg')
         raw = raw.filter(L, H)
