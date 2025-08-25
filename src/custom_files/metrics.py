@@ -14,10 +14,9 @@ Copyright (C) <2025>  <Soenke van Loh>
 Metrics for EEG analysis.
 
 This module provides functions for selecting and calculating metrics for EEG analysis.
-This particular example was used during my Thesis (https://essay.utwente.nl/104520/).
 It showcases how metrics can be added for the analysis.
-The most important thing is that this file has a select_metrics function that returns the metrics functions, names and
-kwargs for a given metric set. The metrics functions are then used in the analysis.py file to calculate the metrics.
+The most important thing is that this file has a calculate function that returns the result of the metric calculation
+as a dictionary name: value
 
 Please feel free to use this file as a template for your own metrics.
 """
@@ -27,20 +26,17 @@ import neurokit2 as nk
 import numpy as np
 import logging
 import time
-logger = logging.getLogger(f"{__name__}")
 
 PER_CHANNEL = True
 
 ####mandatory function to choose a metric set in the pipeline####
-def calculate(data, name, **kwargs):
+def calculate(data, name, **kwargs) -> dict[str, float]:
+    logger = logging.getLogger(f"{__name__}")
     result=None
     t_start = time.time()
     if name =='lzc_only':
         logger.debug(f'Calculating lzc for data')
         result = lzc_adapted(data)
-    elif name =='first_metric_set_MysticalEntropy':
-        logger.debug(f'Calculating first_metric_set_MysticalEntropy for data')
-        result =  first_metric_set_MysticalEntropy(data)
     t_elapsed = time.time() - t_start
     logger.debug(f'Calculating {name} took {t_elapsed} seconds')
     return result
@@ -50,46 +46,6 @@ def lzc_adapted(channel_input: np.ndarray) -> dict:
     lzc, info = nk.complexity_lempelziv(channel_input)
     return {'lzc': lzc}
 
-def first_metric_set_MysticalEntropy(channel_input: np.ndarray) -> dict:
-    """
-    uses single channel input
-    - lzc
-    - multiscale entropy
-    - spectral entropy
-    - permutation entropy
-    - fratal katz
-    - fractal higuchi
-    """
-    # calculate the metrics
-    lzc, _ = nk.complexity_lempelziv(channel_input)
-    dimension, _ = nk.complexity_dimension(channel_input)
-    multiscale_entropy, _ = nk.entropy_multiscale(channel_input, dimension=dimension)
-    spectral_entropy, _ = nk.entropy_spectral(channel_input)
-    fractal_dimension_katz, _ = nk.fractal_katz(channel_input)
-    fractal_dimension_higuchi, _ = nk.fractal_higuchi(channel_input)
-
-    return {
-        'lzc': lzc,
-        'dim' : dimension,
-        'msen': multiscale_entropy,
-        'spen': spectral_entropy,
-        'fdk': fractal_dimension_katz,
-        'fdh': fractal_dimension_higuchi,
-    }
-
-def c_pcipipe_eoc(channel_input: np.ndarray) -> dict:
-    pass
-
-def c_pcipipe_dfa(channel_input: np.ndarray) -> dict:
-    pass
-
-def c_pcipipe_avc(channel_input: np.ndarray) -> dict:
-    pass
-
-def add_metrics_mystical_entropy(channel_input: np.ndarray) -> dict:
-    pass
-
-#mandatory functions to preprocess eeg and choose a metric set in the pipeline
-
+# U are encouraged to add more metrics here and adapt the calculate function to use them
 
 
