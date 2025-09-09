@@ -17,6 +17,7 @@ This module provides the main processing functions for EEG analysis.
 """
 
 import os
+import shutil
 from pprint import pformat
 from typing import Dict, List, Optional, Union, Any
 import pandas as pd
@@ -24,115 +25,27 @@ from sqlalchemy.orm import Mapped
 import logging
 from eeganalyzer.utils.LoggingConfiguration import setup_logging
 import time
+from eeganalyzer.utils.config import load_yaml_file, check_file_exists_and_create_path
 
 from eeganalyzer.core.eeg_processor import EEG_processor
 from eeganalyzer.utils.database import Alchemist
 
 class Processor:
     
-    def __init__(self, config, log_file=None) -> None:
+    def __init__(self, config_path, log_file=None) -> None:
         # Initialize logging
-        #TODO: change this up to use .env file
         setup_logging(log_level=os.getenv('LOG_LEVEL', logging.INFO),
                       log_file=log_file)
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.logger.info("Processor initialized")
         # initialize variables
-        self.session = None
-        self.config = config
-        self.log_file = log_file
-        self.current_eeg_processor = None
-        self.current_csv_processor = None
         self.current_experiment = None
-        self.current_dataset_id = None
-        self.current_run = None
-        self.current_experiment_entry = None
-        
-    def add_or_update_dataset(self) -> Mapped[str]:
-        """
-        Add or update a dataset in the database.
-
-        Args:
-            config (dict): Configuration dictionary containing dataset information.
-
-        Returns:
-            datset_id: The id of the DataSet object that was added or updated.
-        """
-        dataset = Alchemist.add_or_update_dataset(
-            self.session,
-            dataset_name=self.current_experiment['name'],
-            dataset_path=self.current_experiment['bids_folder'],
-            dataset_description=self.current_experiment['description']
-        )
-        logging.debug(f"Added or updated dataset: {dataset.id}")
-        return dataset.id
-
-    def add_or_update_eeg(self, filepath, dataset_id: int=None) -> Any:
-        """
-        Add or update an eeg in the database.
-
-        Args:
-            session: Database session object
-            dataset_id: ID of the dataset to associate with this EEG
-            filepath: Path to the EEG file
-
-        Returns:
-            eeg_id: The id of the eeg object that was added or updated.
-        """
-        dataset_id = dataset_id if dataset_id else self.current_dataset_id
-        full_path = os.path.normpath(filepath)
-        basename = os.path.basename(full_path)
-        file_name, ext = os.path.splitext(basename)
-        eeg = Alchemist.add_or_update_eeg_entry(
-                self.session,
-                dataset_id=dataset_id,
-                filepath=full_path,
-                filename=file_name,
-                file_extension=ext,
-            )
-        logging.debug(f"Added or updated eeg: {eeg.id}")
-        return eeg
-
-    def add_or_update_experiment(self, experiment: Dict[str, Any]=None, run: Dict[str, Any]=None) -> Any:
-        experiment = experiment if experiment else self.current_experiment
-        experiment_entry = Alchemist.add_or_update_experiment(
-                self.session,
-                metric_set_name=experiment.get('metric_name', ''),
-                run_name=experiment['name'],
-                fs=experiment['preprocessing_params']['sfreq'],
-                start=experiment['epoching']['start_time'],
-                stop=experiment['epoching']['stop_time'],
-                window_len=experiment['epoching']['duration'],
-                window_overlap=experiment['epoching']['overlap'],
-                lower_cutoff=experiment['preprocessing_params']['l_freq'],
-                upper_cutoff=experiment['preprocessing_params']['h_freq'],
-                montage=experiment['preprocessing_params']['reference'],
-        )
-        logging.debug(f"Added or updated experiment: {experiment_entry.id}")
-        return experiment_entry
-
-    def populate_data_tables(self, experiment_entry: Any=None, table_exists: str = 'append') -> Optional[str]:
-        experiment_entry = experiment_entry if experiment_entry else self.current_experiment_entry
-        experiment_id = experiment_entry.id
-        table_name = None
-        for eeg in experiment_entry.eegs:
-            eeg_id = eeg.id
-            result_path = Alchemist.get_result_path_from_ids(self.session, experiment_id=experiment_id, eeg_id=eeg_id)
-            if result_path:
-                data = pd.read_csv(result_path)
-                table_name = Alchemist.add_metric_data_table(self.session, experiment_id, eeg_id, data, table_exists)
-        self.session.commit()
-        logging.debug(f"populated data table: {table_name}")
-        return table_name
+        self.session = None
+        self.config_path = config_path
+        self.log_file = log_file
+        self.config = load_yaml_file(config_path)
 
     def get_files_dataframe(self) -> pd.DataFrame:
-        bids_folder = self.current_experiment['bids_folder']
-        infile_ending = self.current_experiment['input_file_ending']
-        outfile_ending = self.current_experiment['outfile_ending']
-        folder_extensions = '/'+'/'.join(
-            [self.current_experiment.get('name').replace(' ', '_'),
-             self.current_experiment.get('preprocessing_name').replace(' ', '_'),
-             self.current_experiment.get('metric_name').replace(' ', '_')])
         """
         Creates a DataFrame containing valid file paths, their corresponding output paths,
         and the processed status (whether the output file already exists).
@@ -152,17 +65,24 @@ class Processor:
                 - The second column ('outpath') contains the absolute path of the metrics output.
                 - The third column ('already_processed') is a boolean indicating whether the output file exists.
         """
+        bids_folder = self.current_experiment['bids_folder']
+        infile_ending = self.current_experiment['input_file_ending']
+        outfile_ending = self.current_experiment['outfile_ending']
+        folder_extensions = '/'+'/'.join(
+            [self.current_experiment.get('name').replace(' ', '_'),
+             self.current_experiment.get('preprocessing_name').replace(' ', '_'),
+             self.current_experiment.get('metric_name').replace(' ', '_')])
         valid_files = []
 
         # Walk through the BIDS folder structure
         for base, dirs, files in os.walk(bids_folder):
+            splitbase = base.split('/')
             for file in files:
                 if not infile_ending or file.endswith(infile_ending):
                     full_path = os.path.join(base, file)
 
                     # Construct the output path based on file naming conventions
                     outfile = file.replace(infile_ending, outfile_ending)
-                    splitbase = base.split('/')
                     outpath = os.path.join(
                         *splitbase[:-1],
                         f'metrics{folder_extensions}',
@@ -170,18 +90,20 @@ class Processor:
                     )
                     # Check if the output file exists
                     already_processed = os.path.exists(outpath)
-
-                    # Add eeg to experiment in database
-                    eeg = self.add_or_update_eeg(full_path)
-                    #TODO: cannot have sql object in self due to paralel processing I think
-                    if not eeg in self.current_experiment_entry.eegs:
-                        self.current_experiment_entry.eegs.append(eeg)
-                    Alchemist.add_result_path(self.session, self.current_experiment_entry.id, eeg.id, outpath)
-                    # Append file data to list
                     valid_files.append({'file_path': full_path, 'outpath': outpath, 'already_processed': already_processed})
 
         # Create the DataFrame from the collected information
         df = pd.DataFrame(valid_files, columns=['file_path', 'outpath', 'already_processed'])
+        base_output_path = os.path.join(
+            *splitbase[:-1],
+            f'metrics{folder_extensions}'
+        )
+        mapping_path = os.path.join(
+            base_output_path,
+            'mapping.csv',
+        )
+        df.to_csv(mapping_path, index=False)
+        shutil.copy(self.config_path, base_output_path)
         logging.debug(f"Generated DataFrame with {len(df)} files")
         return df
 
@@ -201,9 +123,9 @@ class Processor:
                              'duration': experiment['epoching']['duration'],
                              'overlap': experiment['epoching']['overlap'],
                              'recompute': experiment['recompute'],
-                             'metric_name': experiment['metric_name'],
                              'preprocessing_name': experiment['preprocessing_name'],
                              'preprocessing_params': experiment['preprocessing_params'],
+                             'metric_name': experiment['metric_name'],
                              'metric_params': experiment['metric_params'],
                              }
         logging.debug(f"Processing config: \n{pformat(processing_config, indent=4, width=100, compact=True)}")
@@ -231,45 +153,18 @@ class Processor:
 
         # Iterate through experiments defined in the configuration
         for experiment in self.config['experiments']:
-            # make sure we can access our sqlite base
             self.current_experiment = experiment
-            engine = Alchemist.initialize_tables(experiment['sqlite_path'])
-            with Alchemist.make_session(engine) as session:
-                self.session = session
-                # Extract experiment-level configuration
-                # add or update dataset in sqlite database
-                self.current_dataset_id = self.add_or_update_dataset()
-                logging.info(f"Using dataset ID: {self.current_dataset_id}")
-
-                logging.info(
-                    f'{"#" * 20}'
-                    f' Running experiment "{self.current_experiment["name"]}"'
-                    f' on folder "{self.current_experiment["bids_folder"]}"'
-                    f' {"#" * 20}\n')
-
-                self.current_experiment_entry = self.add_or_update_experiment()
-                # create first experiment, then files df and add experiment to each eeg
-                # Create DataFrame of valid files to process (also adds the eegs to the database)
-                files_df = self.get_files_dataframe()
-
-                if len(files_df) == 0:
-                    logging.warning('No valid files found for processing.')
-                    # Dispose engine before continuing, to release resources/threads
-                    try:
-                        engine.dispose()
-                    except Exception:
-                        pass
-                    return None
-                files_df.apply(self.process_file, experiment=self.current_experiment, axis=1)
-
-                self.populate_data_tables(self.current_experiment_entry)
-
-            # Dispose engine after the session context to release any engine-level resources/threads
-            try:
-                engine.dispose()
-            except Exception:
-                pass
-
+            logging.info(
+                f'{"#" * 20}'
+                f' Running experiment "{experiment["name"]}"'
+                f' on folder "{experiment["bids_folder"]}"'
+                f' {"#" * 20}\n')
+            files_df = self.get_files_dataframe()
+            if len(files_df) == 0:
+                logging.warning('No valid files found for processing.')
+                # Dispose engine before continuing, to release resources/threads
+                return None
+            files_df.apply(self.process_file, experiment=experiment, axis=1)
         # Print a final message indicating completion
-        logging.info(f"All processing complete. Results stored in database: {self.current_experiment['sqlite_path']}")
+        logging.info(f"All processing complete.")
         return None
