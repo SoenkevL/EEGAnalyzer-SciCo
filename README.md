@@ -95,15 +95,7 @@ This folder contains custom files that are used by the pipeline.
 1. channel_ident_patterns.py: Is used by the preprocessing module to identify channel types
 
 #### EEG Analysis
-
-``` bash
-eeganalyzer --yaml_config <config_file> --logfile_path <log_file>
-```
-**Arguments:**
-
-- `--yaml_config`: Path to YAML configuration file (optional)
-- `--logfile_path`: Path to log file (optional)
-
+The eeganalysis is orchestrated at three main entry points for the user
 **.env**
 
 The pipeline makes use of environment variables for configuration. You can set these variables in a `.env` file
@@ -118,6 +110,15 @@ LOG_LEVEL: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 This folder contains custom files that are used by the pipeline.
 1. metrics.py: Contains the metrics that are used by the pipeline.
 2. pipeline_preprocessing.py: Contains the preprocessing pipeline that is used by the pipeline.
+
+**config.yaml**
+A config file controls hyperparameters for things like preprocessing, file paths and metric calculation. An example can be found in the example folder
+
+Once everything is set you can just run 
+``` bash
+eeganalyzer
+```
+from the commmand line. Make sure that if you use relative filepaths you exectue this from the right directory
 
 #### Visualization
 This is still very rudimentary
