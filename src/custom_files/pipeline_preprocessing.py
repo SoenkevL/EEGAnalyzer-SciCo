@@ -14,7 +14,14 @@ def preprocess_eeg(eeg: mne.io.Raw, name, **kwargs) -> mne.io.Raw:
         t_elapsed = time.time() - t_start
         logger.debug(f'Preprocessing eeg using general preprocessing took {t_elapsed} seconds')
         return result
-    return eeg
+    if name =='no_additional_preprocessing':
+        logger.info(f'No preprocessing applied')
+        return eeg.pick_types(eeg=True)
+    if name == 'paper_based':
+        result = paper_based_preprocessing(eeg, **kwargs)
+        return result
+    logger.error(f'Preprocessing name not found')
+    raise ValueError(f'Preprocessing name {name} not found')
 
 def general_preprocessing(eeg, **kwargs):
 
@@ -23,6 +30,16 @@ def general_preprocessing(eeg, **kwargs):
     # eeg = eeg.set_eeg_reference(kwargs.get('reference'))
     eeg = eeg.resample(kwargs.get('sfreq'))
     eeg = apply_filter(eeg, l_freq=kwargs.get('l_freq'), h_freq=kwargs.get('h_freq'))
+    return eeg
+
+def paper_based_preprocessing(eeg, **kwargs):
+
+    logger.info(f'Preprocessing eeg using general preprocessing')
+    eeg = eeg.pick_types(eeg=True)
+    # eeg = eeg.set_eeg_reference(kwargs.get('reference'))
+    eeg = eeg.resample(kwargs.get('sfreq'))
+    eeg = apply_filter(eeg, l_freq=kwargs.get('l_freq'), h_freq=kwargs.get('h_freq'))
+    eeg = eeg.notch_filter(kwargs.get('notch_freqs'))
     return eeg
 
 def apply_filter(raw, l_freq=None, h_freq=None):
